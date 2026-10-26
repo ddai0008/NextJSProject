@@ -23,7 +23,7 @@ jobs:
       - if: hashFiles('package.json') != ''
         run: npm run lint --if-present
       - if: hashFiles('tsconfig.json') != ''
-        run: npx tsc --noEmit
+        run: npm run typecheck
       - if: hashFiles('package.json') != ''
         run: npm test --if-present
       - if: hashFiles('package.json') != ''
