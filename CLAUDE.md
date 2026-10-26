@@ -7,7 +7,7 @@ Notes for the development agent and for people. Keep this short and true: the ag
 - Dev: `npm run dev`. Build: `npm run build`. Lint: `npm run lint`.
 - Typecheck: `npx next typegen && npx tsc --noEmit`. Run `typegen` first: `PageProps` / `LayoutProps` are generated globals, so bare `tsc` fails on a clean checkout.
 - Solutions: `npm run solution 05` prints activity 05's reference solution from the `reference` branch via `git show` (add `-s` to drop npm's banner, `-- --list` to list files). Never check `reference` out in this working tree; to work on it use a separate `git worktree`.
-- Docker: `docker ps` must work in WSL (Docker Desktop with WSL integration on). Use `docker compose exec postgres psql ...`, not a local `psql`.
+- Docker: `docker ps` must work in WSL (Docker Desktop with WSL integration on). Postgres will run from `compose.yaml`, which activity A01 adds; once it exists, use `docker compose exec postgres psql ...` (A01 adds `npm run psql`), not a local `psql`.
 - Test: none yet. Added with the course activities (see `course/PLAN.md`).
 
 ## Conventions
