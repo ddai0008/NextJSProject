@@ -6,6 +6,7 @@ Notes for the development agent and for people. Keep this short and true: the ag
 - `node` is not on PATH in this WSL setup (the `npm` that is on PATH is the Windows one). The Node version lives in `.nvmrc` (CI reads it too). Install it once with `scripts/install-node.sh`, then run `source scripts/use-node.sh` in every new shell before `node` / `npm`.
 - Dev: `npm run dev`. Build: `npm run build`. Lint: `npm run lint`.
 - Typecheck: `npx next typegen && npx tsc --noEmit`. Run `typegen` first: `PageProps` / `LayoutProps` are generated globals, so bare `tsc` fails on a clean checkout.
+- Solutions: `npm run solution 05` prints activity 05's reference solution from the `reference` branch via `git show` (add `-s` to drop npm's banner, `-- --list` to list files). Never check `reference` out in this working tree; to work on it use a separate `git worktree`.
 - Test: none yet. Added with the course exercises (see COURSE.md once it exists).
 
 ## Conventions
