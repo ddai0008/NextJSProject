@@ -14,9 +14,9 @@ bundled in `node_modules/next/dist/docs` (they match the installed 16.4.3) and t
 | 1 | Approve Phase 1; Phases 2-4 outline only; regenerate each phase after the previous one, from `PROGRESS.md`; re-estimate Phase 3 for your Java level | Section 2 (Phase 1 in full), section 3 (outline); Phase 3 re-estimated in section 3 |
 | 2 | Java: beginner. Time: 14 h/week | Java primer + more guidance in Phase 3; totals in section 1 |
 | 3 | Docker works in WSL; use `docker exec` for `psql` | Verified (spike S1); A01 will ship an `npm run psql` wrapper around `docker compose exec` |
-| 4 | Solutions on `reference` only, hints stay on `main`; a script prints a solution without switching branches | `npm run solution 05` (merged in this PR) |
-| 5 | Node 24 from one version file; JDK 25 deferred to Phase 3 | `.nvmrc` read by CI and by `scripts/use-node.sh` (this PR) |
-| 6 | Baseline PR; CI fix and CLAUDE.md cleanup as separate commits | The baseline and the typegen CI fix were **already on `main`** (PR #4); only the CLAUDE.md cleanup was left. See this PR's commits |
+| 4 | Solutions on `reference` only, hints stay on `main`; a script prints a solution without switching branches | `npm run solution 05` (PR #5) |
+| 5 | Node 24 from one version file; JDK 25 deferred to Phase 3 | `.nvmrc` read by CI and by `scripts/use-node.sh` (PR #5) |
+| 6 | Baseline PR; CI fix and CLAUDE.md cleanup as separate commits | The baseline and the typegen CI fix were **already on `main`** (PR #4); only the CLAUDE.md cleanup was left. See PR #5 |
 | 7 | You answer `DIAGNOSTIC.md` before Phase 1 is generated | Phase 1 generation is blocked on it |
 | 8 | ORM ADR rewritten; RC `latest` tag is a reason to pin, not to switch | ADR-002 |
 | 9 | Phase 1 auth sits behind your own `getSession()` / `requireRole()` seam so A10 reimplements the seam | Phase 1 acceptance criteria, A05-A07, and A10 |
