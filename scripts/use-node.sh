@@ -8,11 +8,10 @@ _bin="$HOME/.local/node-v${_version}-linux-${_arch}/bin"
 
 if [ -x "$_bin/node" ]; then
   export PATH="$_bin:$PATH"
-  _status=0
+  unset _root _version _arch _bin
+  return 0 2>/dev/null || exit 0
 else
   echo "Node $_version is not installed. Run: scripts/install-node.sh" >&2
-  _status=1
+  unset _root _version _arch _bin
+  return 1 2>/dev/null || exit 1
 fi
-
-unset _root _version _arch _bin
-return "$_status" 2>/dev/null || exit "$_status"
