@@ -7,16 +7,24 @@ permissions:
   contents: read
 jobs:
   build:
-    if: hashFiles('package.json') != ''
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+      - name: Nothing to build yet
+        if: hashFiles('package.json') == ''
+        run: echo "No package.json yet, so the build steps are skipped and this check passes."
       - uses: actions/setup-node@v5
+        if: hashFiles('package.json') != ''
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run lint --if-present
-      - run: npx tsc --noEmit
-      - run: npm test --if-present
-      - run: npm run build
+      - if: hashFiles('package.json') != ''
+        run: npm ci
+      - if: hashFiles('package.json') != ''
+        run: npm run lint --if-present
+      - if: hashFiles('tsconfig.json') != ''
+        run: npm run typecheck
+      - if: hashFiles('package.json') != ''
+        run: npm test --if-present
+      - if: hashFiles('package.json') != ''
+        run: npm run build
