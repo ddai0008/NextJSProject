@@ -69,7 +69,11 @@ if (!hit) {
 }
 
 const { ref, found } = hit
-const activityDir = found[0][1]
+const activityDirs = [...new Set(found.map((match) => match[1]))]
+if (activityDirs.length > 1) {
+  fail(`${ref} has more than one folder for activity ${number} (${activityDirs.join(', ')}), so I can't tell which solution you mean. The reference branch needs cleaning up.`)
+}
+const activityDir = activityDirs[0]
 const solutionFiles = found.map((match) => match[2])
 
 if (second === '--list') {
@@ -83,4 +87,8 @@ if (!solutionFiles.includes(wanted)) {
 }
 
 console.error(`Solution for ${activityDir} (${wanted}) from ${ref}@${git('rev-parse', '--short', ref).trim()}. Hints you may not have tried: course/activities/${activityDir}/hints/`)
-process.stdout.write(git('show', `${ref}:course/activities/${activityDir}/solution/${wanted}`))
+try {
+  process.stdout.write(git('show', `${ref}:course/activities/${activityDir}/solution/${wanted}`))
+} catch (error) {
+  fail(`Could not read ${wanted} from ${ref}: ${String(error.stderr ?? error.message).trim()}`)
+}
