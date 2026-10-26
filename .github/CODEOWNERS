@@ -1,0 +1,4 @@
+# Copy to .github/CODEOWNERS. Changes to CI and agent config need your review (the agent is also denied these edits).
+/.github/        @ddai0008
+/.claude/        @ddai0008
+/CLAUDE.md       @ddai0008
