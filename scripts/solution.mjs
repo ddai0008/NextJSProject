@@ -42,7 +42,8 @@ function lookup() {
   const hits = []
   for (const ref of candidates.filter(refExists)) {
     checked.push(`${ref}@${git('rev-parse', '--short', ref).trim()}`)
-    const found = git('ls-tree', '-r', '--name-only', ref, '--', 'course/activities/').split('\n').map((file) => file.match(pattern)).filter(Boolean)
+    // -z: NUL-separated, unquoted paths (git otherwise quotes names containing non-ASCII bytes, and they would silently not match).
+    const found = git('ls-tree', '-r', '-z', '--name-only', ref, '--', 'course/activities/').split('\0').map((file) => file.match(pattern)).filter(Boolean)
     if (found.length > 0) hits.push({ ref, found, committed: Number(git('log', '-1', '--format=%ct', ref).trim()) })
   }
   hits.sort((a, b) => b.committed - a.committed)
