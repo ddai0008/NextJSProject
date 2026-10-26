@@ -1,0 +1,145 @@
+# Copy to .github/workflows/claude.yml in each target repo.
+# Answers "@claude ..." in issue and PR comments, from the owner only.
+# "@claude implement this issue" on an issue: the action creates agent/<issue>-<title-words>,
+# the implement-issue skill writes code and tests, pushes only that branch, and opens a draft PR
+# that closes the issue. The policy denies pushes anywhere else, merges, branch deletion and
+# workflow edits; the App has no Workflows permission, and on GitHub Pro the ruleset requires your approval.
+# Needs  variables: AGENT_OWNER (your GitHub username), AGENT_REPO (owner/CodingAgent),
+#                   AGENT_REPO_NAME (CodingAgent), AGENT_REF (a plugin-v* tag), APP_CLIENT_ID
+#        secrets:   CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`), APP_PRIVATE_KEY
+# Optional (migrations, ADR 0004): AGENT_DB_ENABLED=true, AGENT_DB_REQUIREMENTS, AGENT_DB_PYTHON_VERSION,
+#                   AGENT_DB_ALEMBIC_INI
+# Kill switch: AGENT_ENABLED=false stops every new agent run (`agent kill --github`); unset means enabled.
+# Actions are pinned to full commit SHAs; `npm run pins:sync` in the agent repo keeps them current.
+# No API key and no cloud credentials: runs use your Claude subscription, and the run record and
+# audit log are kept as a workflow artifact (ADR 0003).
+# The runner context (runner.temp) only exists inside steps, so paths under it are set per step.
+name: claude
+on:
+  issue_comment: { types: [created] }
+  pull_request_review_comment: { types: [created] }
+permissions: { contents: read }
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  claude:
+    # Kill switch first (`agent kill --github <repo>` sets AGENT_ENABLED=false and no new run starts),
+    # then the actor check, before anything else runs, so nobody else's comment starts a job.
+    if: >-
+      vars.AGENT_ENABLED != 'false' &&
+      github.actor == vars.AGENT_OWNER &&
+      github.event.comment.user.login == vars.AGENT_OWNER &&
+      contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      AGENT_MODE: ci
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1"
+      # Claude Code strips credentials from every subprocess (hooks, MCP servers, commands); ADR 0009.
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0, persist-credentials: false }
+      # Read-only token for the agent repo; the agent never gets write access to its own code.
+      - id: agent-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: ${{ vars.AGENT_REPO_NAME }}
+          permission-contents: read
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ vars.AGENT_REPO }}
+          ref: ${{ vars.AGENT_REF || 'main' }}
+          token: ${{ steps.agent-token.outputs.token }}
+          path: .agent-src
+          persist-credentials: false
+      - run: mv .agent-src "$RUNNER_TEMP/agent"
+      # The agent's plugin, hooks, generated settings and scripts are read-only for the rest of the job
+      # (the policy also denies any write, move or delete under $RUNNER_TEMP/agent).
+      - run: chmod -R a-w "$RUNNER_TEMP/agent"
+      # Token for this repo only, scoped to what T0-T2 work needs.
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+          permission-actions: read
+          permission-checks: read
+      # Migrations (ADR 0004), only when the repo variable AGENT_DB_ENABLED is 'true': the backend's
+      # Python deps and ODBC Driver 18, so the db tools can run a throwaway SQL Server in Docker.
+      - if: vars.AGENT_DB_ENABLED == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: { python-version: "${{ vars.AGENT_DB_PYTHON_VERSION || '3.12' }}" }
+      - if: vars.AGENT_DB_ENABLED == 'true'
+        name: SQL Server ODBC Driver 18 and backend requirements
+        env:
+          REQUIREMENTS: ${{ vars.AGENT_DB_REQUIREMENTS || 'backend/requirements.txt' }}
+        run: |
+          curl -sSL -o /tmp/packages-microsoft-prod.deb "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb"
+          sudo dpkg -i /tmp/packages-microsoft-prod.deb
+          sudo apt-get update -q
+          sudo ACCEPT_EULA=Y apt-get install -y -q msodbcsql18 unixodbc
+          pip install -r "$REQUIREMENTS"
+          echo "AGENT_DB_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+      # The OS sandbox (ADR 0009). The runner image has neither bubblewrap nor socat, and Ubuntu 24.04's
+      # AppArmor blocks the user namespaces bubblewrap needs. Without them Claude Code would run every
+      # command unsandboxed, with the job's tokens in its environment and no network allowlist; the
+      # committed settings make it refuse instead, and the last line checks the sandbox works here.
+      - id: sandbox
+        name: OS sandbox prerequisites
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bwrap --ro-bind / / --dev /dev --proc /proc --unshare-user --unshare-pid true
+      - id: claude
+        uses: anthropics/claude-code-action@2dca132ff0e0c4094ce6048b422c6915a071210b # v1.0.247
+        env:
+          # No claude.ai connectors (the owner's account-level MCP servers) in the run; settings.generated.json
+          # also sets disableClaudeAiConnectors.
+          ENABLE_CLAUDEAI_MCP_SERVERS: "false"
+          # Read by the policy hooks: where each tool call's audit line is written.
+          AGENT_AUDIT_DIR: ${{ runner.temp }}/agent-audit
+          # Read by the db tools when the repo has more than one alembic.ini.
+          AGENT_DB_ALEMBIC_INI: ${{ vars.AGENT_DB_ALEMBIC_INI }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          settings: ${{ runner.temp }}/agent/plugin/settings.generated.json
+          # Not a widening (ADR 0009): the job's `if:` already admits only the owner. It switches the
+          # action to its hardened mode: the token stays out of .git/config (a credential helper reads
+          # GH_TOKEN, which sandboxed commands never get) and Claude Code scrubs credentials from every
+          # subprocess (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).
+          allowed_non_write_users: ${{ vars.AGENT_OWNER }}
+          # Branches the action creates for issues are agent/<issue>-<first five title words>,
+          # the only branches the policy lets the agent push to.
+          branch_prefix: agent/
+          branch_name_template: "{{prefix}}{{entityNumber}}-{{description}}"
+          claude_args: >-
+            --plugin-dir ${{ runner.temp }}/agent/plugin
+            --model claude-opus-5-5 --fallback-model claude-sonnet-5-5
+            --max-turns 60
+      # Run record from the action's execution file; fails the job if the run wasn't on the
+      # subscription or the policy plugin didn't load.
+      - if: always()
+        run: node "$RUNNER_TEMP/agent/scripts/ci-run-record.mjs" "${{ steps.claude.outputs.execution_file }}"
+        env:
+          # The settings file passed to the action above, and the prerequisites step's result (ADR 0009).
+          AGENT_SETTINGS_FILE: ${{ runner.temp }}/agent/plugin/settings.generated.json
+          AGENT_SANDBOX_PREREQS: ${{ steps.sandbox.outcome }}
+          AGENT_JOB: comment
+          AGENT_AUDIT_DIR: ${{ runner.temp }}/agent-audit
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agent-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agent-audit/
+          retention-days: 90
+          if-no-files-found: warn
