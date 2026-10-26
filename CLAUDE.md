@@ -3,7 +3,7 @@
 Notes for the development agent and for people. Keep this short and true: the agent reads it at the start of every run.
 
 ## Commands
-- `node` is not on PATH in this WSL setup (the `npm` that is on PATH is the Windows one). Run `export PATH=$HOME/.local/node22/bin:$PATH` first.
+- `node` is not on PATH in this WSL setup (the `npm` that is on PATH is the Windows one). The Node version lives in `.nvmrc` (CI reads it too). Install it once with `scripts/install-node.sh`, then run `source scripts/use-node.sh` in every new shell before `node` / `npm`.
 - Dev: `npm run dev`. Build: `npm run build`. Lint: `npm run lint`.
 - Typecheck: `npx next typegen && npx tsc --noEmit`. Run `typegen` first: `PageProps` / `LayoutProps` are generated globals, so bare `tsc` fails on a clean checkout.
 - Test: none yet. Added with the course exercises (see COURSE.md once it exists).
