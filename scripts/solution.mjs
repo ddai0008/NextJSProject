@@ -54,7 +54,9 @@ let fetched = false
 if (!hit && !process.env.SOLUTION_REF) {
   // Nothing found locally: the solution may have been published since the last fetch.
   try {
-    git('fetch', '--quiet', 'origin', 'reference')
+    // Explicit refspec: in a single-branch or shallow clone the configured refspec does not match `reference`,
+    // and a plain `git fetch origin reference` would only write FETCH_HEAD.
+    git('fetch', '--quiet', 'origin', '+refs/heads/reference:refs/remotes/origin/reference')
     fetched = true
   } catch {
     // no remote, or no reference branch on it: reported below
