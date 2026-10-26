@@ -68,7 +68,8 @@ Phase 1 runs A01-A04 at L1, A05-A09 at L2/L3.
 ## 2. Phase 1: Monolith (Next.js + Postgres), ~31 h. Approved.
 
 Every Phase 1 test is black-box: it asserts HTTP, database or browser behaviour (plus `EXPLAIN` plan shapes), never wall-clock time
-and never how your code is organised, with one exception: the **seam test** below. "Browser" tests need Chromium (A01 checks it launches).
+and never how your code is organised, with three named exceptions: the **seam test** below (A05, tightened in A07), A07's check that no client component
+imports the DAL, and the structure check on A09's ADR file. "Browser" tests need Chromium (A01 checks it launches).
 
 | # | Kind | Ticket | Goal | h |
 | --- | --- | --- | --- | --- |
