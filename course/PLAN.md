@@ -11,7 +11,7 @@ bundled in `node_modules/next/dist/docs` (they match the installed 16.4.3) and t
 
 | # | Decision | Applied how |
 | --- | --- | --- |
-| 1 | Approve Phase 1; Phases 2-4 outline only; regenerate each phase after the previous one, from `PROGRESS.md`; re-estimate Phase 3 for your Java level | Section 2 (Phase 1 in full), sections 3-4 (outline); Phase 3 re-estimated in section 4 |
+| 1 | Approve Phase 1; Phases 2-4 outline only; regenerate each phase after the previous one, from `PROGRESS.md`; re-estimate Phase 3 for your Java level | Section 2 (Phase 1 in full), section 3 (outline); Phase 3 re-estimated in section 3 |
 | 2 | Java: beginner. Time: 14 h/week | Java primer + more guidance in Phase 3; totals in section 1 |
 | 3 | Docker works in WSL; use `docker exec` for `psql` | Verified (spike S1); A01 will ship an `npm run psql` wrapper around `docker compose exec` |
 | 4 | Solutions on `reference` only, hints stay on `main`; a script prints a solution without switching branches | `npm run solution 05` (merged in this PR) |
