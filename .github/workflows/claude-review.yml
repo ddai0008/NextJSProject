@@ -1,0 +1,104 @@
+# Copy to .github/workflows/claude-review.yml. Reviews PRs you open or update (read-only job: T0-T2).
+# Same variables and secrets as claude.yml.
+# The runner context (runner.temp) only exists inside steps, so paths under it are set per step.
+name: claude-review
+on:
+  pull_request: { types: [opened, synchronize, ready_for_review] }
+permissions: { contents: read }
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  review:
+    # Kill switch first (`agent kill --github <repo>` sets AGENT_ENABLED=false and no new run starts),
+    # then owner-only, and never on fork PRs (they get no secrets, and their content is untrusted).
+    if: >-
+      vars.AGENT_ENABLED != 'false' &&
+      github.actor == vars.AGENT_OWNER &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      AGENT_MODE: ci
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1"
+      # Claude Code strips credentials from every subprocess (hooks, MCP servers, commands); ADR 0009.
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0, persist-credentials: false }
+      - id: agent-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: ${{ vars.AGENT_REPO_NAME }}
+          permission-contents: read
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ vars.AGENT_REPO }}
+          ref: ${{ vars.AGENT_REF || 'main' }}
+          token: ${{ steps.agent-token.outputs.token }}
+          path: .agent-src
+          persist-credentials: false
+      - run: mv .agent-src "$RUNNER_TEMP/agent"
+      # The agent's plugin, hooks, generated settings and scripts are read-only for the rest of the job
+      # (the policy also denies any write, move or delete under $RUNNER_TEMP/agent).
+      - run: chmod -R a-w "$RUNNER_TEMP/agent"
+      # Review needs to read code and post one comment review: nothing else.
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-pull-requests: write
+      # The OS sandbox (ADR 0009). The runner image has neither bubblewrap nor socat, and Ubuntu 24.04's
+      # AppArmor blocks the user namespaces bubblewrap needs. Without them Claude Code would run every
+      # command unsandboxed, with the job's tokens in its environment and no network allowlist; the
+      # committed settings make it refuse instead, and the last line checks the sandbox works here.
+      - id: sandbox
+        name: OS sandbox prerequisites
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends bubblewrap socat
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          bwrap --ro-bind / / --dev /dev --proc /proc --unshare-user --unshare-pid true
+      - id: claude
+        uses: anthropics/claude-code-action@2dca132ff0e0c4094ce6048b422c6915a071210b # v1.0.247
+        env:
+          # No claude.ai connectors (the owner's account-level MCP servers) in the run; settings.generated.json
+          # also sets disableClaudeAiConnectors.
+          ENABLE_CLAUDEAI_MCP_SERVERS: "false"
+          # Read by the policy hooks: where each tool call's audit line is written.
+          AGENT_AUDIT_DIR: ${{ runner.temp }}/agent-audit
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          settings: ${{ runner.temp }}/agent/plugin/settings.generated.json
+          # Not a widening (ADR 0009): the job's `if:` already admits only the owner. It switches the
+          # action to its hardened mode: the token stays out of .git/config (a credential helper reads
+          # GH_TOKEN, which sandboxed commands never get) and Claude Code scrubs credentials from every
+          # subprocess (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).
+          allowed_non_write_users: ${{ vars.AGENT_OWNER }}
+          prompt: "Use the review-pr skill to review pull request #${{ github.event.pull_request.number }} in this repository."
+          claude_args: >-
+            --plugin-dir ${{ runner.temp }}/agent/plugin
+            --model claude-opus-5-5 --fallback-model claude-sonnet-5-5
+            --max-turns 30
+      - if: always()
+        run: node "$RUNNER_TEMP/agent/scripts/ci-run-record.mjs" "${{ steps.claude.outputs.execution_file }}"
+        env:
+          # The settings file passed to the action above, and the prerequisites step's result (ADR 0009).
+          AGENT_SETTINGS_FILE: ${{ runner.temp }}/agent/plugin/settings.generated.json
+          AGENT_SANDBOX_PREREQS: ${{ steps.sandbox.outcome }}
+          AGENT_JOB: review
+          AGENT_AUDIT_DIR: ${{ runner.temp }}/agent-audit
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agent-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/agent-audit/
+          retention-days: 90
+          if-no-files-found: warn
