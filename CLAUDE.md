@@ -15,3 +15,10 @@ Notes for the development agent and for people. Keep this short and true: the ag
 
 ## Do not change
 - The `nextjs-agent-rules` block in `AGENTS.md`: `next dev` rewrites it.
+- Test: <!-- how to run the tests -->
+
+## Conventions
+- <!-- Code style, where tests live, how branches and PRs are named. -->
+
+## Do not change
+- <!-- Generated files, vendored code, migrations that are already deployed. -->
