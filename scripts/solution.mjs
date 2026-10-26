@@ -34,25 +34,39 @@ if (!numberArg || !/^\d{1,2}$/.test(numberArg)) fail(usage)
 const number = numberArg.padStart(2, '0')
 
 const candidates = process.env.SOLUTION_REF ? [process.env.SOLUTION_REF] : ['reference', 'origin/reference']
-let ref = candidates.find(refExists)
-if (!ref && !process.env.SOLUTION_REF) {
+const pattern = new RegExp(`^course/activities/(${number}-[^/]+)/solution/(.+)$`)
+
+// Every existing ref that has a solution for this activity; a stale local branch must not hide a newer one on origin.
+function lookup() {
+  const checked = []
+  const hits = []
+  for (const ref of candidates.filter(refExists)) {
+    checked.push(`${ref}@${git('rev-parse', '--short', ref).trim()}`)
+    const found = git('ls-tree', '-r', '--name-only', ref, '--', 'course/activities/').split('\n').map((file) => file.match(pattern)).filter(Boolean)
+    if (found.length > 0) hits.push({ ref, found, committed: Number(git('log', '-1', '--format=%ct', ref).trim()) })
+  }
+  hits.sort((a, b) => b.committed - a.committed)
+  return { hit: hits[0], checked }
+}
+
+let { hit, checked } = lookup()
+let fetched = false
+if (!hit && !process.env.SOLUTION_REF) {
+  // Nothing found locally: the solution may have been published since the last fetch.
   try {
     git('fetch', '--quiet', 'origin', 'reference')
-    ref = candidates.find(refExists)
+    fetched = true
   } catch {
-    // no remote or no such branch: handled below
+    // no remote, or no reference branch on it: reported below
   }
+  ;({ hit, checked } = lookup())
 }
-if (!ref) {
-  fail(`No ${candidates.join(' or ')} ref found. Solutions are published to the reference branch as each phase is generated.`)
+if (!hit) {
+  const where = checked.length > 0 ? `Looked in ${checked.join(', ')}` : `No ${candidates.join(' or ')} ref exists`
+  fail(`No solution for activity ${number} yet. ${where}${fetched ? ' (fetched origin/reference just now)' : ''}. Solutions are published to the reference branch as each phase is generated.`)
 }
 
-const files = git('ls-tree', '-r', '--name-only', ref, '--', 'course/activities/').split('\n').filter(Boolean)
-const pattern = new RegExp(`^course/activities/(${number}-[^/]+)/solution/(.+)$`)
-const found = files.map((file) => file.match(pattern)).filter(Boolean)
-
-if (found.length === 0) fail(`${ref} has no solution for activity ${number} yet.`)
-
+const { ref, found } = hit
 const activityDir = found[0][1]
 const solutionFiles = found.map((match) => match[2])
 
