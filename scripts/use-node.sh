@@ -1,5 +1,6 @@
 # Source this file (do not execute it): `source scripts/use-node.sh`
 # Puts the Node.js version pinned in .nvmrc first on PATH. CI reads the same file (actions/setup-node node-version-file).
+# Bash only (it locates itself with BASH_SOURCE); bash is the WSL default shell.
 _root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 _version="$(tr -d 'v[:space:]' < "$_root/.nvmrc")"
 case "$(uname -m)" in aarch64 | arm64) _arch=arm64 ;; *) _arch=x64 ;; esac
