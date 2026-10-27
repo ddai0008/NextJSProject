@@ -1,0 +1,4 @@
+{
+  "title": "CSRF and the proxy gate",
+  "needs": ["db", "app", "noproxy"]
+}

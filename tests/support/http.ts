@@ -14,6 +14,8 @@ type RequestOptions = {
   json?: unknown
   redirect?: RequestRedirect
   base?: string
+  /** Do not add the default `Origin` header to a non-GET request (to test what a server does with a request that has none). */
+  omitOrigin?: boolean
 }
 
 /** A request to the running app. Redirects are NOT followed unless asked: a test usually wants to see the 307. */
@@ -23,7 +25,7 @@ export async function request(path: string, options: RequestOptions = {}): Promi
   const headers: Record<string, string> = { ...options.headers }
   if (options.cookie) headers.cookie = options.cookie
   if (options.json !== undefined) headers['content-type'] = 'application/json'
-  if (method !== 'GET' && method !== 'HEAD' && headers.origin === undefined) headers.origin = base
+  if (method !== 'GET' && method !== 'HEAD' && headers.origin === undefined && !options.omitOrigin) headers.origin = base
   return fetch(`${base}${path}`, {
     method,
     headers,
