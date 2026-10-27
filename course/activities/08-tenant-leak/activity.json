@@ -1,0 +1,4 @@
+{
+  "title": "Kestrel Solar can see Acme's contacts",
+  "needs": ["db", "app"]
+}
