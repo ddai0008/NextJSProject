@@ -268,7 +268,7 @@ async function main() {
       step('starting the app (next start)')
       const app = await startApp(root, join(actDir, 'server.log'), { DATABASE_URL: env.DATABASE_URL ?? urlFor('crm'), SESSION_TTL_SECONDS: '3600' })
       servers.push(app)
-      env.BASE_URL = `http://127.0.0.1:${app.port}`
+      env.ACT_BASE_URL = `http://127.0.0.1:${app.port}`
       env.ACT_SERVER_LOG = join(actDir, 'server.log')
     }
     if (needs.has('noproxy')) {
@@ -277,11 +277,11 @@ async function main() {
       build(dir, join(actDir, 'build-noproxy.log'))
       const app = await startApp(dir, join(actDir, 'server-noproxy.log'), { DATABASE_URL: env.DATABASE_URL ?? urlFor('crm'), SESSION_TTL_SECONDS: '3600' })
       servers.push(app)
-      env.BASE_URL_NOPROXY = `http://127.0.0.1:${app.port}`
+      env.ACT_BASE_URL_NOPROXY = `http://127.0.0.1:${app.port}`
     }
 
     const files = selected.map((a) => `tests/activities/${a.dir}`)
-    const args = [join(root, 'node_modules', 'vitest', 'vitest.mjs'), 'run', '--config', 'tests/vitest.config.ts', ...files]
+    const args = [join(root, 'node_modules', 'vitest', 'vitest.mjs'), 'run', '--config', 'tests/vitest.config.mts', ...files]
     if (valueOf('-t')) args.push('-t', valueOf('-t'))
     step('running the tests')
     const code = await new Promise((resolveCode) => {

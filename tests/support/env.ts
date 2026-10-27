@@ -16,7 +16,7 @@ export const env = {
   /** What the app itself connects with (from A09 on, the restricted role). */
   appDbUrl: () => required('ACT_APP_DB_URL', 'There is no test database yet: do you have a migration in db/migrations?'),
   adminUrl: () => required('ACT_ADMIN_URL', 'The runner did not start.'),
-  baseUrl: () => required('BASE_URL', 'This test needs the running app, which the runner starts for activities that declare it.'),
-  baseUrlNoProxy: () => required('BASE_URL_NOPROXY', 'This test needs the app built without proxy.ts.'),
+  baseUrl: () => required('ACT_BASE_URL', 'This test needs the running app, which the runner starts for activities that declare it (ACT_BASE_URL).'),
+  baseUrlNoProxy: () => required('ACT_BASE_URL_NOPROXY', 'This test needs the app built without proxy.ts.'),
   buildLog: () => required('ACT_BUILD_LOG', 'The app was not built by the runner.'),
 }
