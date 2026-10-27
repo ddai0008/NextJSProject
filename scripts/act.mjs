@@ -6,6 +6,9 @@
 //   npm run act -- 3 -t "walking"    only the tests whose name contains "walking" (passed to Vitest)
 //   npm run act -- 3 --no-build      reuse the last build in .next (use it when only a test or a doc changed)
 //   npm run act -- --list            list the activities
+//   ACT_APP_AS_OWNER=1 npm run act -- 8   connect the app (and the DAL tests) as the database owner instead of crm_app. From A09 on the restricted role's row-level
+//                                    security would hide a missing filter in your own queries; the owner role does not, so use this to check the first wall on its own.
+//                                    (A09's own tests are expected to fail in this mode.)
 //
 // What it does for you: checks Node and Docker, starts Postgres from compose.yaml, builds a test database (migrations + a
 // small deterministic seed, cached until a migration changes), gives this run its own copy of it, builds the app WITHOUT a
@@ -252,7 +255,7 @@ async function main() {
         runDb = `crm_run_${process.pid}`
         await dropDatabase(runDb)
         await createFromTemplate(runDb, template)
-        const appRole = (await roleExists('crm_app')) ? { user: 'crm_app', password: 'crm_app' } : {}
+        const appRole = !process.env.ACT_APP_AS_OWNER && (await roleExists('crm_app')) ? { user: 'crm_app', password: 'crm_app' } : {}
         Object.assign(env, { ACT_RUN_DB: runDb, ACT_DB_URL: urlFor(runDb), ACT_APP_DB_URL: urlFor(runDb, appRole), DATABASE_URL: urlFor(runDb, appRole) })
       } else {
         step('no migrations yet (db/migrations): tests that need the test database will fail')
