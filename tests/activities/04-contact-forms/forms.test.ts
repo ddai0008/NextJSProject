@@ -114,6 +114,8 @@ describe('A04 the add-contact form', () => {
     const before = await dbCount(SLUG)
     await submitAdd(page, { name: 'Dup One', email })
     await expect.poll(() => dbCount(SLUG), { timeout: 8000 }).toBe(before + 1)
+    // The row exists before the browser has heard back, and React resets the form only when it has: wait for that, or a fast second submit is wiped by the reset of the first.
+    await pw(field(addForm(page), 'Name'), 'the first action has been answered: the form is empty again').toHaveValue('')
     await submitAdd(page, { name: 'Dup Two', email: email.toUpperCase() })
     const form = addForm(page)
     await pw(form.getByRole('alert').first()).toBeVisible()
