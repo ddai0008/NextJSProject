@@ -29,7 +29,9 @@ describe('A05 registering', () => {
     const email = emailAddress()
     const ok = await register(email)
     expect(ok.status).toBe(201)
-    expect((await ok.json()).id).toMatch(/^[0-9a-f-]{36}$/)
+    const okText = await ok.text()
+    expect(JSON.parse(okText).id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(okText, 'the response never echoes the password').not.toContain(PASSWORD)
     for (const [label, body] of [
       ['not an email', { email: 'nope', name: 'x', password: PASSWORD }],
       ['no name', { email: emailAddress(), name: '', password: PASSWORD }],
@@ -43,8 +45,6 @@ describe('A05 registering', () => {
     const malformed = await request('/api/auth/register', { method: 'POST', body: '{not json', headers: { 'content-type': 'application/json' } })
     expect(malformed.status, 'malformed JSON').toBe(400)
     expect((await register(email.toUpperCase())).status, 'the same address in capitals').toBe(409)
-    const text = await ok.clone().text()
-    expect(text).not.toContain(PASSWORD)
   })
 
   test('A05.2 the password is stored nowhere in the clear, and what is stored is neither a bare digest nor the same for two users', async () => {
