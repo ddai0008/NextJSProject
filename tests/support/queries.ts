@@ -15,7 +15,8 @@ export async function recordQueries<T>(fn: () => Promise<T>): Promise<{ result: 
   proto.query = function (this: unknown, ...args: any[]) {
     const first = args[0]
     if (typeof first === 'string') queries.push({ text: first, values: Array.isArray(args[1]) ? args[1] : [] })
-    else if (first && typeof first.text === 'string') queries.push({ text: first.text, values: first.values ?? [] })
+    // Drizzle calls query(config, values): the values can be in the second argument even when the first is a config object.
+    else if (first && typeof first.text === 'string') queries.push({ text: first.text, values: first.values ?? (Array.isArray(args[1]) ? args[1] : []) })
     return original.apply(this, args)
   }
   try {
