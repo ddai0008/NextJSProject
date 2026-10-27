@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+// npm run db:reset                          drop the dev database `crm`, re-create it, apply the migrations, load the full seed
+// npm run db:grant -- <email> <org> <role>  make an existing user a member of an organisation (role: admin | manager | rep)
+import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { seed } from './lib/seed.mjs'
+import { dropDatabase, migrateDatabase, urlFor, withAdmin, withClient } from './lib/db.mjs'
+
+const root = resolve(import.meta.dirname, '..')
+const [command, ...args] = process.argv.slice(2)
+
+async function reset() {
+  const up = spawnSync('docker', ['compose', 'up', '-d', '--wait', 'postgres'], { cwd: root, stdio: 'inherit' })
+  if (up.status !== 0) throw new Error('Could not start Postgres (docker compose up). Is Docker running?')
+  if (!existsSync(join(root, 'db', 'migrations', 'meta', '_journal.json'))) {
+    throw new Error('There are no migrations yet. Generate the first one with: npm run db:generate')
+  }
+  await dropDatabase('crm')
+  await withAdmin((c) => c.query('create database crm'))
+  await migrateDatabase(urlFor('crm'), root)
+  console.log('Migrated. Seeding (full size, about 20 s)...')
+  console.log('Seeded:', JSON.stringify(await seed({ url: urlFor('crm'), scale: 'full' })))
+}
+
+async function grant() {
+  const [email, orgSlug, role] = args
+  if (!email || !orgSlug || !['admin', 'manager', 'rep'].includes(role)) throw new Error('usage: npm run db:grant -- <email> <org slug> <admin|manager|rep>')
+  await withClient(urlFor('crm'), async (c) => {
+    const user = (await c.query('select id from users where email = $1', [email])).rows[0]
+    const org = (await c.query('select id from orgs where slug = $1', [orgSlug])).rows[0]
+    if (!user) throw new Error(`No user with email ${email}. Register one first (A05).`)
+    if (!org) throw new Error(`No organisation "${orgSlug}". Known: kestrel, acme, lumen, harbor.`)
+    await c.query('insert into memberships (org_id, user_id, role) values ($1, $2, $3) on conflict do nothing', [org.id, user.id, role])
+    console.log(`${email} is now ${role} of ${orgSlug}.`)
+  })
+}
+
+try {
+  if (command === 'reset') await reset()
+  else if (command === 'grant') await grant()
+  else throw new Error('usage: node scripts/db.mjs <reset | grant>')
+} catch (error) {
+  console.error(String(error.message ?? error))
+  process.exit(1)
+}
