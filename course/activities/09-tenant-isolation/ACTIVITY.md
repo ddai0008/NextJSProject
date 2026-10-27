@@ -96,7 +96,7 @@ Run `npm run act -- 9`, then `npm run act:upto -- 9`.
 - **`FORCE ROW LEVEL SECURITY`.** What does it change for the owner, and why would you not use it on a table whose owner also runs your migrations?
 - **Cost.** Count the statements one DAL call now sends. Which of them could be merged without weakening the wall?
 - **Avoid the catalog change.** If your search needed a function marked `LEAKPROOF` (it needs a superuser, and a managed Postgres probably will not give you one), what else could serve the search from the indexes?
-- **Which tests went blind?** Take the first wall away in one function (delete the `org_id` filter) and run the earlier tests. Which ones still fail, and which now pass? What does that say about what each was testing?
+- **Which tests went blind?** Take the first wall away in one function (delete the `org_id` filter) and run the earlier tests. Which ones still fail, and which now pass? What does that say about what each was testing? Then run them again with `ACT_APP_AS_OWNER=1 npm run act -- 8` (the app connects as the owner, which row-level security does not apply to) and compare. Why do you want *both* configurations in CI?
 - **Backups and restores.** For each option in your ADR: what does restoring *one* tenant's data to yesterday involve?
 
 ## Self-review checklist (judge your own ADR)
