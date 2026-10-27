@@ -1,11 +1,14 @@
 import { sql } from './db'
+import { ctxOf } from './people'
 import type { RequestContext } from '../../lib/dal/types'
 
-/** A request context for an organisation, built directly (the DAL functions take one as their first argument). */
+/**
+ * A request context for a REAL member of an organisation: the seeded admin, manager or rep (the seed gives each organisation 1 admin, 2 managers, 9 reps).
+ * It must be a real member: since A07 a contact you create is owned by you, and the database refuses an owner who is not a member.
+ */
 export async function contextFor(orgSlug: string, role: RequestContext['role'] = 'admin'): Promise<RequestContext> {
-  const [org] = await sql<{ id: string }>('select id from orgs where slug = $1', [orgSlug])
-  if (!org) throw new Error(`no organisation "${orgSlug}" in the test database`)
-  return { userId: '00000000-0000-0000-0000-000000000000', orgId: org.id, orgSlug, role }
+  const email = role === 'admin' ? `admin@${orgSlug}.test` : role === 'manager' ? `manager1@${orgSlug}.test` : `rep1@${orgSlug}.test`
+  return ctxOf(email, orgSlug)
 }
 
 /** The ids of an organisation's contacts in the order the list must show them. */

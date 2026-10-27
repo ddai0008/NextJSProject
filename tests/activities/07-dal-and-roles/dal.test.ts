@@ -164,9 +164,16 @@ describe('A07 members', () => {
     expect((await sql<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [acmeAdmin.orgId, newcomer.id]))[0].role).toBe('manager')
     expect(await outcome(() => dal.changeRole(acmeManager, newcomer.id, 'admin')), 'a manager').toBe('forbidden')
     expect(await outcome(() => dal.changeRole(kestrelAdmin, newcomer.id, 'rep')), "another organisation's admin").toBe('not found')
-    const adminsBefore = (await sql<{ n: number }>("select count(*)::int as n from memberships where org_id = $1 and role = 'admin'", [acmeAdmin.orgId]))[0].n
-    expect(adminsBefore, 'the seed gives each organisation one admin').toBe(1)
-    expect(await outcome(() => dal.changeRole(acmeAdmin, acmeAdmin.userId, 'manager')), 'demoting the last admin').toBe('forbidden')
-    expect((await sql<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [acmeAdmin.orgId, acmeAdmin.userId]))[0].role).toBe('admin')
+    // The last-admin rule, in an organisation of its own (other tests add admins to the seeded ones, and files run in any order).
+    const slug = `last-admin-${Date.now().toString(36)}`
+    const [org] = await sql<{ id: string }>("insert into orgs (slug, name) values ($1, 'Last Admin Test') returning id", [slug])
+    const [soleAdmin] = await sql<{ id: string }>("insert into users (email, name) values ($1, 'Sole Admin') returning id", [unique('sole')])
+    await sql("insert into memberships (org_id, user_id, role) values ($1, $2, 'admin')", [org.id, soleAdmin.id])
+    await sql("insert into memberships (org_id, user_id, role) values ($1, $2, 'rep')", [org.id, newcomer.id])
+    const soleAdminCtx: RequestContext = { userId: soleAdmin.id, orgId: org.id, orgSlug: slug, role: 'admin' }
+    expect(await outcome(() => dal.changeRole(soleAdminCtx, soleAdmin.id, 'manager')), 'demoting the last admin').toBe('forbidden')
+    expect((await sql<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [org.id, soleAdmin.id]))[0].role).toBe('admin')
+    expect(await outcome(() => dal.changeRole(soleAdminCtx, newcomer.id, 'admin')), 'promoting someone else to admin first').toBe('ok')
+    expect(await outcome(() => dal.changeRole(soleAdminCtx, soleAdmin.id, 'manager')), 'now there is another admin, so stepping down is allowed').toBe('ok')
   })
 })
