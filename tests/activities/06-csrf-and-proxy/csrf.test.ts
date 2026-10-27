@@ -23,6 +23,17 @@ describe.each(instances)('A06 CSRF (%s)', (_label, getBase) => {
     expect((await request('/api/auth/session', { cookie, base })).status, 'still signed in: the forged logout did nothing').toBe(200)
   })
 
+  test('A06.1b origins that merely CONTAIN this site\'s address are still another site (a substring or startsWith comparison lets them in)', async () => {
+    const base = getBase()
+    const host = new URL(base).host
+    const { cookie } = await signIn('kestrel', 'rep', base)
+    for (const origin of [`${base}.evil.example`, `${base}@evil.example`, `https://evil.example/${host}`, `${base.replace('http://', 'https://')}.evil.example`]) {
+      const refused = await request('/api/auth/logout', { method: 'POST', cookie, headers: { origin }, base })
+      expect(refused.status, `Origin: ${origin}`).toBe(403)
+    }
+    expect((await request('/api/auth/session', { cookie, base })).status).toBe(200)
+  })
+
   test('A06.2 a cross-site POST to login or register is refused and has no effect', async () => {
     const base = getBase()
     const email = `a06-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}@act.test`
