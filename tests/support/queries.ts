@@ -28,11 +28,19 @@ export async function recordQueries<T>(fn: () => Promise<T>): Promise<{ result: 
 
 export type PlanNode = { nodeType: string; relation?: string; index?: string }
 
-/** Every node of the plan Postgres would use for this statement (EXPLAIN without ANALYZE: the statement is not executed). */
-export async function planOf(query: RecordedQuery, url: string = env.dbUrl()): Promise<PlanNode[]> {
+/**
+ * Every node of the plan Postgres would use for this statement (EXPLAIN without ANALYZE: the statement is not executed).
+ *
+ * Sequential scans are switched off for the session (`avoidSeqScan`, on by default). The question a plan test asks is "can an index serve
+ * this query?", not "does the planner happen to prefer it on a small test table?": on a small table a sequential scan can legitimately be
+ * the cheapest plan, and the answer would then depend on the amount of data. With sequential scans off, a `Seq Scan` that is still in the
+ * plan means no index could do the job.
+ */
+export async function planOf(query: RecordedQuery, { url = env.dbUrl(), avoidSeqScan = true }: { url?: string; avoidSeqScan?: boolean } = {}): Promise<PlanNode[]> {
   const client = new pg.Client({ connectionString: url })
   await client.connect()
   try {
+    if (avoidSeqScan) await client.query('set enable_seqscan = off')
     const { rows } = await client.query(`explain (format json) ${query.text}`, query.values as any[])
     const nodes: PlanNode[] = []
     const walk = (node: any) => {

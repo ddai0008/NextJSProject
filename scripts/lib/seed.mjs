@@ -251,7 +251,9 @@ export async function seed({ url, scale = 'test', log = () => {} }) {
         log(`deals: ${dealSeeds.length}`)
       }
     }
-    await client.query('analyze')
+    // VACUUM (not just ANALYZE): it also flushes the pending list of GIN indexes (trigram search) and sets the visibility map,
+    // so the planner sees the same costs on every run instead of depending on when autovacuum happened to run.
+    await client.query('vacuum (analyze)')
   } finally {
     await client.end()
   }
