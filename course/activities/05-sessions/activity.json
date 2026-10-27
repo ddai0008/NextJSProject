@@ -1,0 +1,4 @@
+{
+  "title": "Sessions from first principles",
+  "needs": ["db", "app"]
+}
