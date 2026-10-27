@@ -9,6 +9,8 @@ const globalForDb = globalThis as unknown as { __crmPool?: Pool }
 
 export const pool = (globalForDb.__crmPool ??= new Pool({
   connectionString: databaseUrl(),
+  // Without a timeout, a database that never answers makes every request wait forever.
+  connectionTimeoutMillis: 5_000,
   // The activity tests set DB_POOL_MAX=1 to prove that nothing leaks from one request to the next on a shared connection.
   max: Number(process.env.DB_POOL_MAX ?? 10),
 }))
