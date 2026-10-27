@@ -1,8 +1,7 @@
 # Pipewise CRM course: plan
 
-**Status (2026-10-26):** Phase 1 (A01-A09) is approved in full. Phases 2-4 are an **outline only**: each is generated after you finish the
-previous one, recalibrated from `PROGRESS.md`, and may change. Nothing for Phase 1 has been generated yet (no activities, hints, tests
-or solutions): that waits for your answers to `DIAGNOSTIC.md`.
+**Status (2026-10-27):** Phase 1 (A01-A09) is **generated and waiting for your review**: activities, hints, acceptance tests and a verified reference
+implementation. Phases 2-4 are still an **outline only**: each is generated after you finish the previous one, recalibrated from `PROGRESS.md`, and may change.
 
 Versions were checked on 2026-10-26 against the npm registry, Maven Central, start.spring.io, endoflife.date, Docker Hub, the docs
 bundled in `node_modules/next/dist/docs` (they match the installed 16.4.3) and the vendors' docs.
@@ -17,7 +16,7 @@ bundled in `node_modules/next/dist/docs` (they match the installed 16.4.3) and t
 | 4 | Solutions on `reference` only, hints stay on `main`; a script prints a solution without switching branches | `npm run solution 05` (PR #5) |
 | 5 | Node 24 from one version file; JDK 25 deferred to Phase 3 | `.nvmrc` read by CI and by `scripts/use-node.sh` (PR #5) |
 | 6 | Baseline PR; CI fix and CLAUDE.md cleanup as separate commits | The baseline and the typegen CI fix were **already on `main`** (PR #4); only the CLAUDE.md cleanup was left. See PR #5 |
-| 7 | You answer `DIAGNOSTIC.md` before Phase 1 is generated | Phase 1 generation is blocked on it |
+| 7 | You answer `DIAGNOSTIC.md` before Phase 1 is generated | Answered 2026-10-27; A01, A03 and A04 were lengthened from it (`PROGRESS.md`) |
 | 8 | ORM ADR rewritten; RC `latest` tag is a reason to pin, not to switch | ADR-002 |
 | 9 | Phase 1 auth sits behind your own `getSession()` / `requireRole()` seam so A10 reimplements the seam | Phase 1 acceptance criteria, A05-A07, and A10 |
 | 10 | Spike each open risk on `reference` before generating any phase and report | Section 5; Phase 1 spikes are done |
@@ -42,11 +41,11 @@ Legend: **F** feature · **I** incident (a planted bug you find) · **D** design
 
 | Phase | Activities | Estimate | At 14 h/week |
 | --- | --- | --- | --- |
-| 1. Monolith | A01-A09 | ~31 h | ~2 weeks |
+| 1. Monolith | A01-A09 | ~33.5 h (31 h before the diagnostic) | ~2.5 weeks |
 | 2. Product grows (outline) | A10-A22 | ~48 h | ~3.5 weeks |
 | 3. Extract Deals (outline, beginner Java) | A23-A32 + ~12 h Java primer | ~63 h | ~4.5 weeks |
 | 4. Production (outline) | A33-A38 | ~23 h | ~1.5 weeks |
-| **Total** | 38 activities | **~165 h** | **~12 weeks** |
+| **Total** | 38 activities | **~168 h** | **~12 weeks** |
 
 Estimates for Phases 2-4 will be redone from your actual Phase 1 pace.
 
@@ -65,7 +64,7 @@ Phase 1 runs A01-A04 at L1, A05-A09 at L2/L3.
 
 ---
 
-## 2. Phase 1: Monolith (Next.js + Postgres), ~31 h. Approved.
+## 2. Phase 1: Monolith (Next.js + Postgres), ~33.5 h. Generated; awaiting your review.
 
 Every Phase 1 test is black-box: it asserts HTTP, database or browser behaviour (plus `EXPLAIN` plan shapes), never wall-clock time
 and never how your code is organised, with three named exceptions: the **seam test** below (A05, tightened in A07), A07's check that no client component
@@ -73,10 +72,10 @@ imports the DAL, and the structure check on A09's ADR file. "Browser" tests need
 
 | # | Kind | Ticket | Goal | h |
 | --- | --- | --- | --- | --- |
-| 01 | F | Boot the platform | Compose Postgres, migrations, and a deterministic 10k+ seed running, with the activity runner showing its first red test. | 1 |
+| 01 | F | Boot the platform | Compose Postgres, migrations, and a deterministic 10k+ seed running, with the activity runner showing its first red test. | 1.5 |
 | 02 | F | Model the CRM | Design a tenant-safe schema (orgs, memberships, companies, contacts, deals, stages) whose database itself refuses bad data. | 3 |
-| 03 | F | Contacts at 10k rows | Per-org App Router structure and a URL-driven list (filter, sort, page), streamed under Cache Components, within a query-plan budget. | 4 |
-| 04 | F | Create and edit contacts | Server Actions with server-side validation, field errors, a pending state, and a page that is fresh right after your own write. | 4 |
+| 03 | F | Contacts at 10k rows | Per-org App Router structure and a URL-driven list (filter, sort, page), streamed under Cache Components, within a query-plan budget. | 5.5 |
+| 04 | F | Create and edit contacts | Server Actions with server-side validation, field errors, a pending state, and a page that is fresh right after your own write. | 4.5 |
 | 05 | F | Sessions from first principles | Password hashing, session tokens, cookies and logout, with no auth library, behind your own `getSession()`. | 5 |
 | 06 | I | CSRF and the proxy gate | See what Server Actions check for free and what route handlers don't, and what a proxy gate really covers. | 3 |
 | 07 | F | Who is asking, and for which org? | A data access layer, `requireRole()`, and the admin/manager/rep permission matrix enforced where the data is read. | 4 |

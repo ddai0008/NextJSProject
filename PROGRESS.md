@@ -9,7 +9,7 @@ State of the course. Updated after each step. Struggles are recorded so later ac
 | 0. Ground truth | Done 2026-10-26. See `GROUND_TRUTH.md`. App scaffolded (Next.js 16.4.3, React 19.3.0). |
 | 1. Diagnostic | Answered 2026-10-27. Score **3.0 / 10** (provisional, see below). |
 | 2. Course plan | `course/PLAN.md` approved for Phase 1 (A01-A09); Phases 2-4 are an outline. |
-| 3. Phase 1 | Being generated (2026-10-27). Not yet reviewed. |
+| 3. Phase 1 | Generated 2026-10-27 (A01-A09, ~33.5 h). Verified on the reference branch: `npm run act:upto -- 9` passes, also with the test files in shuffled orders. **Waiting for your review.** No activity has been started by the learner yet. |
 
 ## Learner profile
 
