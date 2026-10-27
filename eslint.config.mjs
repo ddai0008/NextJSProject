@@ -21,6 +21,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Activity overlays (planted code that `npm run start-activity` copies into the app) are not part of the app until they are copied.
+    "course/**",
   ]),
 ]);
 
