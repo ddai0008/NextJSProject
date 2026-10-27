@@ -22,7 +22,8 @@ beforeAll(async () => {
   base = env.baseUrl()
   browser = await launchBrowser()
   context = await browser.newContext()
-  const { cookie } = await signIn(SLUG, 'admin')
+  // one person who is an admin of both organisations the tests use (since A07 you can only open organisations you belong to)
+  const { cookie } = await signIn(SLUG, 'admin', base, [[OTHER, 'admin']])
   if (cookie) await context.addCookies(cookie.split('; ').map((pair) => ({ name: pair.slice(0, pair.indexOf('=')), value: pair.slice(pair.indexOf('=') + 1), url: base })))
 })
 afterAll(async () => {

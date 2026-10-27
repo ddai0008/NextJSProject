@@ -56,14 +56,18 @@ export async function hasAuth(base: string = env.baseUrl()): Promise<boolean> {
 
 let counter = 0
 
-/** A fresh user who is a member of `orgSlug` with `role`, signed in through the public auth contract (when it exists). */
-export async function signIn(orgSlug: string, role: Role = 'admin', base: string = env.baseUrl()): Promise<Signed> {
+/**
+ * A fresh user who is a member of `orgSlug` with `role` (and of `alsoMemberOf`, if given), signed in through the public auth contract (when it exists).
+ */
+export async function signIn(orgSlug: string, role: Role = 'admin', base: string = env.baseUrl(), alsoMemberOf: [string, Role][] = []): Promise<Signed> {
   const email = `act-${Date.now().toString(36)}-${counter++}-${Math.random().toString(36).slice(2, 8)}@act.test`
   if (!(await hasAuth(base))) return { email, userId: null, cookie: null, orgSlug, role }
   const registered = await request('/api/auth/register', { json: { email, name: 'Act Test', password: PASSWORD }, base })
   if (registered.status !== 201) throw new Error(`POST /api/auth/register answered ${registered.status}: ${await registered.text()}. The contract is in the A05 ticket.`)
   const { id } = (await registered.json()) as { id: string }
-  await sql('insert into memberships (org_id, user_id, role) select id, $2, $3 from orgs where slug = $1', [orgSlug, id, role])
+  for (const [slug, memberRole] of [[orgSlug, role] as [string, Role], ...alsoMemberOf]) {
+    await sql('insert into memberships (org_id, user_id, role) select id, $2, $3 from orgs where slug = $1', [slug, id, memberRole])
+  }
   const login = await request('/api/auth/login', { json: { email, password: PASSWORD }, base })
   if (login.status !== 200) throw new Error(`POST /api/auth/login answered ${login.status}: ${await login.text()}`)
   return { email, userId: id, cookie: cookieHeaderOf(login), orgSlug, role }
