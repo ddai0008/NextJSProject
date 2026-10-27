@@ -151,8 +151,8 @@ describe('A04 the add-contact form', () => {
   test('A04.11 the total is cached: two page views run at most one count query', async () => {
     const { cookie } = await signIn(SLUG, 'admin')
     await resetStatements()
-    await request(`/${SLUG}/contacts`, { cookie })
-    await request(`/${SLUG}/contacts`, { cookie })
+    // Read the bodies: the dynamic part of a page is rendered while its response is consumed.
+    for (let view = 0; view < 2; view++) await (await request(`/${SLUG}/contacts`, { cookie })).text()
     const calls = await callsMatching((statement) => /count\(\*\)/i.test(statement) && /contacts/i.test(statement) && !/pg_stat_statements|join orgs/i.test(statement))
     expect(calls, 'count queries across two page views (0 or 1 when cached, 2 when not)').toBeLessThanOrEqual(1)
   })
