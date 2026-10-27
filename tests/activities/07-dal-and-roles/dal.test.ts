@@ -170,10 +170,15 @@ describe('A07 members', () => {
     const [soleAdmin] = await sql<{ id: string }>("insert into users (email, name) values ($1, 'Sole Admin') returning id", [unique('sole')])
     await sql("insert into memberships (org_id, user_id, role) values ($1, $2, 'admin')", [org.id, soleAdmin.id])
     await sql("insert into memberships (org_id, user_id, role) values ($1, $2, 'rep')", [org.id, newcomer.id])
-    const soleAdminCtx: RequestContext = { userId: soleAdmin.id, orgId: org.id, orgSlug: slug, role: 'admin' }
-    expect(await outcome(() => dal.changeRole(soleAdminCtx, soleAdmin.id, 'manager')), 'demoting the last admin').toBe('forbidden')
-    expect((await sql<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [org.id, soleAdmin.id]))[0].role).toBe('admin')
-    expect(await outcome(() => dal.changeRole(soleAdminCtx, newcomer.id, 'admin')), 'promoting someone else to admin first').toBe('ok')
-    expect(await outcome(() => dal.changeRole(soleAdminCtx, soleAdmin.id, 'manager')), 'now there is another admin, so stepping down is allowed').toBe('ok')
+    try {
+      const soleAdminCtx: RequestContext = { userId: soleAdmin.id, orgId: org.id, orgSlug: slug, role: 'admin' }
+      expect(await outcome(() => dal.changeRole(soleAdminCtx, soleAdmin.id, 'manager')), 'demoting the last admin').toBe('forbidden')
+      expect((await sql<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [org.id, soleAdmin.id]))[0].role).toBe('admin')
+      expect(await outcome(() => dal.changeRole(soleAdminCtx, newcomer.id, 'admin')), 'promoting someone else to admin first').toBe('ok')
+      expect(await outcome(() => dal.changeRole(soleAdminCtx, soleAdmin.id, 'manager')), 'now there is another admin, so stepping down is allowed').toBe('ok')
+    } finally {
+      await sql('delete from memberships where org_id = $1', [org.id])
+      await sql('delete from orgs where id = $1', [org.id])
+    }
   })
 })

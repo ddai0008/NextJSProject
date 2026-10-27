@@ -38,17 +38,21 @@ export async function sqlStateOf(promise: Promise<unknown>): Promise<string | 'n
   }
 }
 
+/** The four organisations the seed creates. Tests may create others of their own; helpers that ask "which organisations are there" mean these. */
+export const SEEDED_ORGS = ['kestrel', 'acme', 'lumen', 'harbor'] as const
+
 export type OrgRow = { id: string; slug: string; name: string }
 
 export async function orgs(): Promise<Record<string, OrgRow>> {
-  const rows = await sql<OrgRow>('select id, slug, name from orgs order by slug')
+  const rows = await sql<OrgRow>('select id, slug, name from orgs where slug = any($1) order by slug', [SEEDED_ORGS])
   return Object.fromEntries(rows.map((r) => [r.slug, r]))
 }
 
 /** The org with the fewest contacts: small enough to walk page by page. */
 export async function smallestOrg(): Promise<OrgRow & { contacts: number }> {
   const rows = await sql<OrgRow & { contacts: number }>(
-    `select o.id, o.slug, o.name, count(c.*)::int as contacts from orgs o left join contacts c on c.org_id = o.id group by o.id order by 4 asc, o.slug limit 1`,
+    `select o.id, o.slug, o.name, count(c.*)::int as contacts from orgs o left join contacts c on c.org_id = o.id where o.slug = any($1) group by o.id order by 4 asc, o.slug limit 1`,
+    [SEEDED_ORGS],
   )
   return rows[0]
 }

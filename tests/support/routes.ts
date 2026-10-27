@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { sql } from './db'
+import { SEEDED_ORGS, sql } from './db'
 
 export type Route = { pattern: string; kind: 'page' | 'handler' }
 
@@ -28,7 +28,8 @@ export function fill(pattern: string, fixture: Fixture): string {
 
 export async function fixtures(): Promise<Fixture[]> {
   return sql<Fixture>(
-    `select o.slug as "orgSlug", (select c.id from contacts c where c.org_id = o.id order by c.created_at desc limit 1) as "contactId" from orgs o order by o.slug`,
+    `select o.slug as "orgSlug", (select c.id from contacts c where c.org_id = o.id order by c.created_at desc limit 1) as "contactId" from orgs o where o.slug = any($1) order by o.slug`,
+    [SEEDED_ORGS],
   )
 }
 

@@ -283,6 +283,8 @@ async function main() {
     const files = selected.map((a) => `tests/activities/${a.dir}`)
     const args = [join(root, 'node_modules', 'vitest', 'vitest.mjs'), 'run', '--config', 'tests/vitest.config.mts', ...files]
     if (valueOf('-t')) args.push('-t', valueOf('-t'))
+    // For the course author: e.g. ACT_VITEST_ARGS='--sequence.shuffle.files --sequence.seed=3' runs the files in another order.
+    if (process.env.ACT_VITEST_ARGS) args.push(...process.env.ACT_VITEST_ARGS.split(' ').filter(Boolean))
     step('running the tests')
     const code = await new Promise((resolveCode) => {
       const vitest = spawn(process.execPath, args, { cwd: root, stdio: 'inherit', env: { ...process.env, ...env } })
