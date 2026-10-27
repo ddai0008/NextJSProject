@@ -109,16 +109,16 @@ describe('A08 every DAL function that takes an id, asked about ANOTHER organisat
     expect(baseline, 'the rows exist').toContain(secret.contact)
 
     for (const file of dalFiles()) {
-      const module = (await import(/* @vite-ignore */ file)) as Record<string, unknown>
+      const loaded = (await import(/* @vite-ignore */ file)) as Record<string, unknown>
       for (const fn of exportedFunctions(file)) {
         const [first, second, ...rest] = fn.parameters
-        if (!fn.isAsync || !isContext(first) || !second || !looksLikeAnId(second.name) || typeof module[fn.name] !== 'function') continue
+        if (!fn.isAsync || !isContext(first) || !second || !looksLikeAnId(second.name) || typeof loaded[fn.name] !== 'function') continue
         walked.push(`${relative(env.root(), file)}: ${fn.name}`)
         for (const [kind, id] of Object.entries(targets)) {
           const label = `${fn.name}(kestrel admin, ${kind} id of acme)`
           let outcome = ''
           try {
-            outcome = JSON.stringify(await (module[fn.name] as (...args: unknown[]) => Promise<unknown>)(kestrelAdmin, id, ...rest.map(sampleFor))) ?? ''
+            outcome = JSON.stringify(await (loaded[fn.name] as (...args: unknown[]) => Promise<unknown>)(kestrelAdmin, id, ...rest.map(sampleFor))) ?? ''
           } catch (error) {
             outcome = `threw ${error instanceof Error ? error.message : String(error)}`
           }
