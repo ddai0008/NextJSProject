@@ -18,7 +18,8 @@
     "db:grant": "node scripts/db.mjs grant",
     "psql": "docker compose exec postgres psql -U crm -d crm",
     "act": "node scripts/act.mjs",
-    "act:upto": "node scripts/act.mjs --upto"
+    "act:upto": "node scripts/act.mjs --upto",
+    "start-activity": "node scripts/start-activity.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
