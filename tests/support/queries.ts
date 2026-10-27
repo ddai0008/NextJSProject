@@ -1,7 +1,14 @@
 import pg from 'pg'
 import { env } from './env'
 
-export type RecordedQuery = { text: string; values: unknown[] }
+/** `session` numbers the connection a statement went out on, so a test can tell which statements belong together. */
+export type RecordedQuery = { text: string; values: unknown[]; session?: number }
+
+const sessions = new WeakMap<object, number>()
+const sessionOf = (client: object) => {
+  if (!sessions.has(client)) sessions.set(client, sessions.size)
+  return sessions.get(client)!
+}
 
 /**
  * Runs `fn` and returns the SQL the code under test sent to Postgres while it ran. It wraps `pg.Client.prototype.query`, which
@@ -14,9 +21,9 @@ export async function recordQueries<T>(fn: () => Promise<T>): Promise<{ result: 
   const original = proto.query
   proto.query = function (this: unknown, ...args: any[]) {
     const first = args[0]
-    if (typeof first === 'string') queries.push({ text: first, values: Array.isArray(args[1]) ? args[1] : [] })
+    if (typeof first === 'string') queries.push({ text: first, values: Array.isArray(args[1]) ? args[1] : [], session: sessionOf(this as object) })
     // Drizzle calls query(config, values): the values can be in the second argument even when the first is a config object.
-    else if (first && typeof first.text === 'string') queries.push({ text: first.text, values: first.values ?? (Array.isArray(args[1]) ? args[1] : []) })
+    else if (first && typeof first.text === 'string') queries.push({ text: first.text, values: first.values ?? (Array.isArray(args[1]) ? args[1] : []), session: sessionOf(this as object) })
     return original.apply(this, args)
   }
   try {
@@ -50,6 +57,40 @@ export async function planOf(query: RecordedQuery, { url = env.dbUrl(), avoidSeq
     walk(rows[0]['QUERY PLAN'][0].Plan)
     return nodes
   } finally {
+    await client.end()
+  }
+}
+
+/**
+ * The plan of `queries[index]` for the APPLICATION'S database user (not the owner: owners are exempt from row-level security, so a plan measured as the owner
+ * says nothing about what the app runs), after replaying what the code did on that connection before it in the same unit of work: BEGIN, whatever it did to say which
+ * tenant this is, and so on. That makes the check independent of the way tenants are isolated: if a statement on the connection establishes the context, the replay does too.
+ * Everything runs in a transaction that is rolled back, so replaying cannot change data.
+ */
+export async function planOfReplayed(queries: RecordedQuery[], index: number, { url = env.appDbUrl(), avoidSeqScan = true }: { url?: string; avoidSeqScan?: boolean } = {}): Promise<PlanNode[]> {
+  const target = queries[index]
+  const before: RecordedQuery[] = []
+  for (let i = index - 1; i >= 0; i--) {
+    if (queries[i].session !== target.session) continue
+    if (/^\s*(commit|rollback|end)\b/i.test(queries[i].text)) break
+    before.unshift(queries[i])
+  }
+  const client = new pg.Client({ connectionString: url })
+  await client.connect()
+  try {
+    if (!before.length || !/^\s*(begin|start transaction)\b/i.test(before[0].text)) await client.query('begin')
+    for (const q of before) await client.query(q.text, q.values as any[])
+    if (avoidSeqScan) await client.query('set enable_seqscan = off')
+    const { rows } = await client.query(`explain (format json) ${target.text}`, target.values as any[])
+    const nodes: PlanNode[] = []
+    const walk = (node: any) => {
+      nodes.push({ nodeType: node['Node Type'], relation: node['Relation Name'], index: node['Index Name'] })
+      for (const child of node.Plans ?? []) walk(child)
+    }
+    walk(rows[0]['QUERY PLAN'][0].Plan)
+    return nodes
+  } finally {
+    await client.query('rollback').catch(() => undefined)
     await client.end()
   }
 }
