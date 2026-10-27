@@ -202,15 +202,19 @@ describe('A04 the edit page', () => {
     await pw(field(form, 'Email'), "another contact's email is refused").toHaveAttribute('aria-invalid', 'true')
     expect(await page.innerText('body')).not.toMatch(LEAK)
 
+    // A successful save takes you back to the list. (redirect() works by throwing: inside a try/catch it is swallowed and nothing happens.)
+    const backOnList = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/${SLUG}/contacts(\\?.*)?$`)
+
     form = await open()
     await form.getByRole('button', { name: 'Save' }).click()
-    await page.waitForURL(`${base}/${SLUG}/contacts**`, { timeout: 8000 }).catch(() => undefined)
+    await page.waitForURL(backOnList, { timeout: 8000 })
     expect((await sql<{ name: string }>('select name from contacts where id = $1', [created.id]))[0].name, 'saving it unchanged is fine').toBe('Edit Me')
 
     form = await open()
     const renamed = `Edited ${Date.now()}`
     await field(form, 'Name').fill(renamed)
     await form.getByRole('button', { name: 'Save' }).click()
+    await page.waitForURL(backOnList, { timeout: 8000 })
     await expect.poll(async () => (await sql<{ name: string }>('select name from contacts where id = $1', [created.id]))[0].name, { timeout: 8000 }).toBe(renamed)
     await page.close()
   })
