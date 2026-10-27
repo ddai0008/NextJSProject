@@ -29,7 +29,7 @@ export async function GET(_request: Request, { params }: RouteContext<'/api/orgs
 
 ```tsx
 <form action={renameContactAction.bind(null, orgSlug, contact.id)} aria-label="Rename contact">
-  {/* only the name field: no hidden orgSlug or contactId */}
+  {/* only the name field. (Binding is tidier than hidden inputs; it is the DAL call below that makes the form safe.) */}
 </form>
 ```
 

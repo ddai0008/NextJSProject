@@ -70,7 +70,7 @@ A07's DAL asks it by construction: every function takes `ctx` and filters by `ct
 Two more mechanisms are in play:
 
 - **Hidden form fields.** The rename form carries `orgSlug` and `contactId` as hidden inputs. Whoever holds the form can edit them (browser developer tools, or just writing the POST by hand). The test does exactly that, and it needs no JavaScript: a plain multipart `POST` to the page's URL runs a Server Action.
-- **Bound arguments.** `action.bind(null, orgSlug, contactId)` keeps values out of the form: Next.js encrypts them on the way out and checks them on the way back. That removes one way to forge a request. It is a convenience, not the lock: what if the page showed the form for a contact the person may not change?
+- **Bound arguments.** `action.bind(null, orgSlug, contactId)` keeps the ids out of the form's *inputs*, but not out of the form: Next.js writes the bound values into the page as plain JSON (look for a hidden field named `$ACTION_1:1`), and a plain `POST` can edit them exactly like a hidden input. Only the variables an *inline* Server Action closes over are encrypted, and the Next.js guide itself says not to rely on that alone (`data-security.md`, *Closures and encryption*). Binding is tidier, not safer. The check has to happen where the data is read or written.
 
 ## Requirements
 

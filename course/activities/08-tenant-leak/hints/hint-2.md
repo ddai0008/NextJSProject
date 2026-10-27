@@ -6,9 +6,9 @@
 
 **The endpoint.** Same replacement. For a missing contact return `Response.json({ error: … }, { status: 404 })`. While you are there, what does `requireRole` do for a visitor with no session when called from a Route Handler (it was written for pages)? A06 decided that APIs answer with status codes, not redirects. What does `getSession()` give you for that?
 
-**The form.** Two independent improvements, and the second is the one that matters:
+**The form.** The value that matters is the second one; the first is a tidy-up:
 
-1. Take `orgSlug` and `contactId` out of the form: pass them to the action with `.bind(null, orgSlug, contactId)` when the page renders. What can no longer be forged?
+1. If you like, pass `orgSlug` and `contactId` to the action with `.bind(null, orgSlug, contactId)` instead of hidden inputs. Then view the page source (or `curl` it with your cookie) and look at what the form now contains: are the bound values hidden from whoever holds the form? What would that mean for how much you can rely on binding?
 2. Make the action go through the DAL with the context: `requireRole`, then `getContact(ctx, id)` (not found → `notFound()`), then `updateContact(ctx, id, …)`. Read what `updateContact` does with `email` when you do not pass one. Read what it throws for a rep who is not the owner, and decide what the action should do with that. (`redirect()` throws: keep it outside any `try`.)
 
 **The export.** It is the only Route Handler that queries the database itself, and A08.9 says why that is a smell: a query written in a handler has no context to filter by. Move the query into a DAL function that takes the `ctx`, and let `requireRole(slug, …)` produce the context. What does `requireRole` do for someone who is not in the organisation, and for an organisation that does not exist? Is that what the test wants?
