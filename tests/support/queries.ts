@@ -5,8 +5,9 @@ import { env } from './env'
 export type RecordedQuery = { text: string; values: unknown[]; session?: number }
 
 const sessions = new WeakMap<object, number>()
+let sessionCount = 0
 const sessionOf = (client: object) => {
-  if (!sessions.has(client)) sessions.set(client, sessions.size)
+  if (!sessions.has(client)) sessions.set(client, sessionCount++)
   return sessions.get(client)!
 }
 
