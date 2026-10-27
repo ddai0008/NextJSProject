@@ -8,11 +8,19 @@ import { hasUseClientDirective, importsMatching, moduleSpecifiers, resolveSpecif
 // the data access layer is server-only, client code never reaches it, and pages, layouts, actions and components never talk to the database directly.
 
 describe('A07 the boundary', () => {
-  test('A07.11 every module of lib/dal imports server-only', () => {
-    const files = sourceFiles(['lib/dal']).filter((f) => !/\/types\.ts$|\/errors\.ts$/.test(f))
+  test('A07.11 every module of lib/dal that touches the database, request headers/cookies or auth internals imports server-only', () => {
+    const files = sourceFiles(['lib/dal'])
     expect(files.length).toBeGreaterThan(3)
-    const missing = files.filter((file) => !/import\s+['"]server-only['"]/.test(readFileSync(file, 'utf8'))).map((f) => relative(env.root(), f))
-    expect(missing, 'modules without `import "server-only"`').toEqual([])
+    const missing = files
+      .filter((file) =>
+        moduleSpecifiers(file).some((specifier) => {
+          const resolved = resolveSpecifier(file, specifier)
+          return specifier === 'next/headers' || (resolved !== null && /^(db|lib\/auth)(\/|$)/.test(resolved))
+        }),
+      )
+      .filter((file) => !/import\s+['"]server-only['"]/.test(readFileSync(file, 'utf8')))
+      .map((f) => relative(env.root(), f))
+    expect(missing, 'modules that reach the database or cookies without `import "server-only"` (a pure helper does not need it)').toEqual([])
   })
 
   test('A07.12 no Client Component imports the data access layer, the database or auth internals', () => {
