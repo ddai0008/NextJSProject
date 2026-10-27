@@ -44,12 +44,15 @@ let kestrelAdmin: RequestContext
 
 beforeAll(async () => {
   const [org] = await sql<{ id: string }>("select id from orgs where slug = 'acme'")
+  const [rep] = await sql<{ id: string }>('select id from users where email = $1', [seeded.acme.rep])
+  // Rows with nothing pointing at them and nothing they point at except an owner, so that a destructive call on them would SUCCEED if nothing stopped it
+  // (a foreign key from a deal to the contact, say, would make an unscoped delete fail by luck and hide the bug).
   const [user] = await sql<{ id: string }>("insert into users (email, name) values ($1, 'Acme Only Person') returning id", [secret.person])
   await sql("insert into memberships (org_id, user_id, role) values ($1, $2, 'rep')", [org.id, user.id])
   const [company] = await sql<{ id: string }>('insert into companies (org_id, name) values ($1, $2) returning id', [org.id, secret.company])
-  const [contact] = await sql<{ id: string }>('insert into contacts (org_id, owner_id, company_id, name, email) values ($1, $2, $3, $4, $5) returning id', [org.id, user.id, company.id, secret.contact, secret.email])
+  const [contact] = await sql<{ id: string }>('insert into contacts (org_id, owner_id, name, email) values ($1, $2, $3, $4) returning id', [org.id, rep.id, secret.contact, secret.email])
   const [stage] = await sql<{ id: string }>('select id from stages where org_id = $1 order by position limit 1', [org.id])
-  const [deal] = await sql<{ id: string }>('insert into deals (org_id, owner_id, contact_id, company_id, stage_id, title, value_cents) values ($1, $2, $3, $4, $5, $6, 1000) returning id', [org.id, user.id, contact.id, company.id, stage.id, secret.deal])
+  const [deal] = await sql<{ id: string }>('insert into deals (org_id, owner_id, stage_id, title, value_cents) values ($1, $2, $3, $4, 1000) returning id', [org.id, rep.id, stage.id, secret.deal])
   acmeIds = { org: org.id, user: user.id, company: company.id, contact: contact.id, stage: stage.id, deal: deal.id }
   kestrelAdmin = await ctxOf(seeded.kestrel.admin, 'kestrel')
 })
