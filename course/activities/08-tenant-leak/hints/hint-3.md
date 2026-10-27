@@ -50,4 +50,24 @@ export async function renameContactAction(orgSlug: string, contactId: string, fo
 }
 ```
 
+**The export:**
+
+```ts
+// lib/dal/contact-export.ts
+export async function exportContacts(ctx: RequestContext, limit = 5000): Promise<ExportRow[]> {
+  return db.select({ name: contacts.name, email: contacts.email, company: companies.name })
+    .from(contacts)
+    .leftJoin(companies, /* same organisation */)
+    .where(eq(contacts.orgId, ctx.orgId))
+    .orderBy(/* newest first */)
+    .limit(limit)
+}
+```
+
+```ts
+// app/api/export/contacts/route.ts, after the 401 and the 400
+const ctx = await requireRole(slug, 'rep')      // a member of THAT organisation, or the not-found response
+const rows = await exportContacts(ctx)
+```
+
 **Then:** delete `lib/dal/legacy-contacts.ts`, run `npm run act -- 8`, and finally `npm run act:upto -- 8`. If A08.6 or A08.7 names a function you did not write, read it before you fix it.

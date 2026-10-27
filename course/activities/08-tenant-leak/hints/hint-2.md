@@ -11,6 +11,8 @@
 1. Take `orgSlug` and `contactId` out of the form: pass them to the action with `.bind(null, orgSlug, contactId)` when the page renders. What can no longer be forged?
 2. Make the action go through the DAL with the context: `requireRole`, then `getContact(ctx, id)` (not found → `notFound()`), then `updateContact(ctx, id, …)`. Read what `updateContact` does with `email` when you do not pass one. Read what it throws for a rep who is not the owner, and decide what the action should do with that. (`redirect()` throws: keep it outside any `try`.)
 
+**The export.** It is the only Route Handler that queries the database itself, and A08.9 says why that is a smell: a query written in a handler has no context to filter by. Move the query into a DAL function that takes the `ctx`, and let `requireRole(slug, …)` produce the context. What does `requireRole` do for someone who is not in the organisation, and for an organisation that does not exist? Is that what the test wants?
+
 **The class.** A08.6 wants every exported async DAL function to start with the context. A08.7 calls each id-taking function as a Kestrel **admin** with Acme's ids and compares Acme's rows before and after. If it names a function you did not touch, that function filters by `id` but not by `orgId`: it is the next incident, found early.
 
 **One more look:** your note in `docs/notes/a08-incident.md` should now be able to say which of the three callers was *not* in the ticket, if any.
