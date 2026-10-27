@@ -3,7 +3,7 @@ import type { ContactDTO, ContactInput } from '../../../lib/dal/contacts'
 import type { RequestContext } from '../../../lib/dal/types'
 import { sql, sqlState } from '../../support/db'
 import { contextFor } from '../../support/contacts'
-import { recordQueries } from '../../support/queries'
+import { recordQueries, selectsFrom } from '../../support/queries'
 
 type Dal = {
   countContacts(ctx: RequestContext): Promise<number>
@@ -61,11 +61,12 @@ describe('A04 contacts (data access)', () => {
     expect(await dal.getContact(harbor, '00000000-0000-0000-0000-000000000000')).toBeNull()
   })
 
-  test('A04.4 countContacts equals count(*) for the organisation and costs one query', async () => {
+  test('A04.4 countContacts equals count(*) for the organisation and costs one query on contacts', async () => {
     const [{ n }] = await sql<{ n: number }>('select count(*)::int as n from contacts where org_id = $1', [harbor.orgId])
     const { result, queries } = await recordQueries(() => dal.countContacts(harbor))
     expect(result).toBe(n)
-    expect(queries.filter((q) => /^\s*select/i.test(q.text))).toHaveLength(1)
+    // One query that reads contacts. (Anything else the data layer sends on the way, such as a transaction or the tenant setting added in A09, is not what this counts.)
+    expect(selectsFrom(queries, 'contacts')).toHaveLength(1)
   })
 
   test('A04.5 the same email twice in one organisation (any case) is refused by the database; another organisation may use it', async () => {
