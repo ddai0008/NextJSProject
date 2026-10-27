@@ -80,8 +80,10 @@ async function fingerprint(): Promise<string> {
 }
 
 /** A value for a parameter that is not the context or the id, chosen from its declared type, so that a function that WOULD write has something to write. */
-function sampleFor(type: string): unknown {
-  const t = type.trim()
+function sampleFor(parameter: { name: string; type: string }): unknown {
+  const t = parameter.type.trim()
+  // Another id (a new owner, say) must be a REAL one of Acme's, or the database would refuse it for being malformed and hide the missing check.
+  if (/^string\b/.test(t) && looksLikeAnId(parameter.name)) return acmeIds.user
   if (/^string\b/.test(t)) return 'idor-check'
   if (/^number\b/.test(t)) return 1
   if (/^boolean\b/.test(t)) return true
@@ -109,7 +111,7 @@ describe('A08 every DAL function that takes an id, asked about ANOTHER organisat
           const label = `${fn.name}(kestrel admin, ${kind} id of acme)`
           let outcome = ''
           try {
-            outcome = JSON.stringify(await (module[fn.name] as (...args: unknown[]) => Promise<unknown>)(kestrelAdmin, id, ...rest.map((parameter) => sampleFor(parameter.type)))) ?? ''
+            outcome = JSON.stringify(await (module[fn.name] as (...args: unknown[]) => Promise<unknown>)(kestrelAdmin, id, ...rest.map(sampleFor))) ?? ''
           } catch (error) {
             outcome = `threw ${error instanceof Error ? error.message : String(error)}`
           }
