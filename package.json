@@ -12,7 +12,7 @@
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/db.mjs migrate",
     "db:seed": "node scripts/seed.mjs",
     "db:reset": "node scripts/db.mjs reset",
     "db:grant": "node scripts/db.mjs grant",

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// npm run db:migrate                      apply db/migrations to the dev database (shows Postgres's own error if one fails)
 // npm run db:reset                          drop the dev database `crm`, re-create it, apply the migrations, load the full seed
 // npm run db:grant -- <email> <org> <role>  make an existing user a member of an organisation (role: admin | manager | rep)
 import { spawnSync } from 'node:child_process'
@@ -23,6 +24,21 @@ async function reset() {
   console.log('Seeded:', JSON.stringify(await seed({ url: urlFor('crm'), scale: 'full' })))
 }
 
+// drizzle-kit's own `migrate` exits with status 1 and prints nothing about why. This runs the same migrations through drizzle's
+// migrator and prints what Postgres said. All pending migrations run in ONE transaction: if one fails, none of them is applied.
+async function migrate() {
+  try {
+    await migrateDatabase(urlFor('crm'), root)
+    console.log('Migrations applied to the development database "crm".')
+  } catch (error) {
+    const cause = error.cause ?? error
+    console.error(`Migration failed: ${cause.message}${cause.code ? ` (SQLSTATE ${cause.code})` : ''}`)
+    if (cause.hint) console.error(`Postgres hint: ${cause.hint}`)
+    console.error('Nothing was applied: pending migrations run in one transaction. The SQL drizzle-kit generates is a draft: read the file that failed.')
+    throw new Error('migration failed')
+  }
+}
+
 async function grant() {
   const [email, orgSlug, role] = args
   if (!email || !orgSlug || !['admin', 'manager', 'rep'].includes(role)) throw new Error('usage: npm run db:grant -- <email> <org slug> <admin|manager|rep>')
@@ -37,9 +53,10 @@ async function grant() {
 }
 
 try {
-  if (command === 'reset') await reset()
+  if (command === 'migrate') await migrate()
+  else if (command === 'reset') await reset()
   else if (command === 'grant') await grant()
-  else throw new Error('usage: node scripts/db.mjs <reset | grant>')
+  else throw new Error('usage: node scripts/db.mjs <migrate | reset | grant>')
 } catch (error) {
   console.error(String(error.message ?? error))
   process.exit(1)
