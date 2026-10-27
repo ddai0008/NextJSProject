@@ -82,7 +82,7 @@ function sampleFor(type: string): unknown {
   if (/^string\b/.test(t)) return 'idor-check'
   if (/^number\b/.test(t)) return 1
   if (/^boolean\b/.test(t)) return true
-  if (/\bRole\b/.test(t)) return 'rep'
+  if (/\bRole\b/.test(t)) return 'admin' // the most dangerous value: promoting someone is what an attacker would try
   if (/^\{|Input|Changes|Patch|Values|Data/.test(t)) return { name: 'idor-check', title: 'idor-check', email: null, valueCents: 1, role: 'rep' }
   return undefined
 }

@@ -131,6 +131,12 @@ describe('A08 the rename form', () => {
     await submit(rep.cookie, path, asRep, swapId(own.id, colleagues.id, `Taken over ${token}`))
     expect(await nameOf(colleagues.id), "a colleague's contact after a rep's forged form").toBe(colleagues.name)
 
+    // The honest route too: a rep may OPEN a colleague's contact (same organisation), and the form on that page must still refuse them.
+    const colleaguePath = `/kestrel/contacts/${colleagues.id}`
+    const repOnColleague = await renameForm(rep.cookie, colleaguePath)
+    await submit(rep.cookie, colleaguePath, repOnColleague, (name, value) => (name === 'name' ? `Renamed by a rep ${token}` : value))
+    expect(await nameOf(colleagues.id), "a colleague's contact after a rep used the form on its own page").toBe(colleagues.name)
+
     const managerPath = `/kestrel/contacts/${colleagues.id}`
     const asManager = await renameForm(manager.cookie, managerPath)
     await submit(manager.cookie, managerPath, asManager, (name, value) => (name === 'name' ? `Renamed by a manager ${token}` : value))
