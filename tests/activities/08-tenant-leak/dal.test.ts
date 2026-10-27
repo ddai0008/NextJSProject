@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import type { RequestContext } from '../../../lib/dal/types'
 import { sql } from '../../support/db'
 import { env } from '../../support/env'
-import { sourceFiles } from '../../support/imports'
+import { importsMatching, sourceFiles } from '../../support/imports'
 import { ctxOf, seeded } from '../../support/people'
 import { exportedFunctions } from '../../support/signatures'
 
@@ -16,6 +16,13 @@ const isContext = (parameter: { name: string; type: string } | undefined) => !!p
 const looksLikeAnId = (name: string) => /^(id|[a-z]+Id)$/.test(name)
 
 describe('A08 the data access layer, as a whole', () => {
+  test('A08.9 Route Handlers other than the auth and health endpoints do not talk to the database: they ask the data access layer', () => {
+    const offenders = importsMatching(['app'], (resolved) => /^db(\/|$)/.test(resolved)).filter(
+      ({ file }) => /(^|\/)route\.tsx?$/.test(file) && !/^app\/api\/(auth|health)\//.test(file),
+    )
+    expect(offenders.map((o) => `${o.file} imports ${o.specifier}`), 'a query written in a handler has no context to filter by: move it into lib/dal').toEqual([])
+  })
+
   test('A08.6 every async function a DAL module exports takes the RequestContext first (no function can be called without saying who is asking)', () => {
     const files = dalFiles()
     expect(files.length, 'DAL modules found').toBeGreaterThan(3)

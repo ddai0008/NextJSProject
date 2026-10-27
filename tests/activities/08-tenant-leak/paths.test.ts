@@ -144,3 +144,26 @@ describe('A08 the rename form', () => {
     expect(await emailOf(colleagues.id)).toBe(colleagues.email)
   })
 })
+
+// The ticket names two paths. This one is not in it: the finance team's CSV export (A06) asks for `?org=<slug>` and, since A06, only checks that the caller is signed in.
+describe('A08 the CSV export', () => {
+  test('A08.8 /api/export/contacts?org=<slug>: members of that organisation get their CSV; anybody else gets 404 and no rows, exactly as for an organisation that does not exist', async () => {
+    const stolen = await request('/api/export/contacts?org=acme', { cookie: rep.cookie })
+    const stolenBody = await stolen.text()
+    expect(stolen.status, "Acme's export requested by a Kestrel member").toBe(404)
+    expect([acme.email, acme.name].filter((s) => stolenBody.includes(s)), 'Acme rows in the body').toEqual([])
+    expect((await request('/api/export/contacts?org=no-such-organisation', { cookie: rep.cookie })).status, 'an organisation that does not exist: the same answer').toBe(404)
+
+    const mine = await request('/api/export/contacts?org=kestrel', { cookie: rep.cookie })
+    expect(mine.status, 'their own organisation').toBe(200)
+    expect(mine.headers.get('content-type')).toMatch(/text\/csv/)
+    const csv = await mine.text()
+    expect(csv.split('\n')[0]).toBe('name,email,company')
+    expect(csv, 'their own rows are in it').toContain(own.email)
+
+    const dual = await request('/api/export/contacts?org=acme', { cookie: both.cookie })
+    expect(dual.status, 'a person who belongs to both organisations may export Acme').toBe(200)
+    expect(await dual.text()).toContain(acme.email)
+    expect((await request('/api/export/contacts', { cookie: rep.cookie })).status, 'no ?org at all').toBe(400)
+  })
+})
