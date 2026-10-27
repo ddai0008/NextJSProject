@@ -1,0 +1,4 @@
+{
+  "title": "Contacts at 10k rows",
+  "needs": ["db", "app"]
+}
