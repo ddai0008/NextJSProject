@@ -147,15 +147,17 @@ describe('A03 the contact list (data access)', () => {
     const [{ email }] = await sql<{ email: string }>('select email from contacts where org_id = $1 offset 9 limit 1', [big.orgId])
     const firstCursor = (await listContacts(big, {})).nextCursor ?? undefined
     const firstNameCursor = (await listContacts(big, { sort: 'name' })).nextCursor ?? undefined
-    const cases: { label: string; query: ContactQuery; allowSort: boolean }[] = [
+    const cases: { label: string; query: ContactQuery; allowSort: boolean; trigram?: boolean }[] = [
       { label: 'first page, newest first', query: {}, allowSort: false },
       { label: 'later page, newest first', query: { cursor: firstCursor }, allowSort: false },
       { label: 'first page, by name', query: { sort: 'name' }, allowSort: false },
       { label: 'later page, by name', query: { sort: 'name', cursor: firstNameCursor }, allowSort: false },
-      { label: 'search a surname', query: { q: surname }, allowSort: true },
-      { label: 'search by part of an email', query: { q: email.slice(3, 12) }, allowSort: true },
+      // A search must be served by a trigram index (pg_trgm). Without one the only way to answer ILIKE '%x%' is to read rows one by one:
+      // walking the newest-first index and filtering is not a Seq Scan, but it reads the whole organisation to find a rare match.
+      { label: 'search a surname', query: { q: surname }, allowSort: true, trigram: true },
+      { label: 'search by part of an email', query: { q: email.slice(3, 12) }, allowSort: true, trigram: true },
     ]
-    for (const { label, query, allowSort } of cases) {
+    for (const { label, query, allowSort, trigram } of cases) {
       const { queries } = await recordQueries(() => listContacts(big, query))
       const selects = selectsFrom(queries, 'contacts')
       expect(selects.length, `${label}: at least one SELECT from contacts`).toBeGreaterThan(0)
@@ -164,6 +166,11 @@ describe('A03 the contact list (data access)', () => {
         const where = `${label}: ${describePlan(plan)}`
         expect(plan.some((n) => n.nodeType === 'Seq Scan' && n.relation === 'contacts'), `sequential scan of contacts (${where})`).toBe(false)
         if (!allowSort) expect(plan.some((n) => n.nodeType === 'Sort' || n.nodeType === 'Incremental Sort'), `sort node (${where})`).toBe(false)
+        if (trigram) {
+          const used = plan.map((n) => n.index).filter((name): name is string => Boolean(name))
+          const defs = used.length ? await sql<{ indexdef: string }>('select indexdef from pg_indexes where indexname = any($1)', [used]) : []
+          expect(defs.some((d) => /trgm_ops/.test(d.indexdef)), `a trigram index (gin_trgm_ops / gist_trgm_ops) serves the search (${where})`).toBe(true)
+        }
       }
     }
   })
