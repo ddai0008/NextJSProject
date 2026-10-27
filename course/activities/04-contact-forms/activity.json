@@ -1,0 +1,4 @@
+{
+  "title": "Create and edit contacts",
+  "needs": ["db", "app", "browser"]
+}
