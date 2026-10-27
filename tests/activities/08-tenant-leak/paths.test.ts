@@ -90,8 +90,8 @@ describe('A08 the mobile endpoint', () => {
   })
 })
 
-// The rename form posts the organisation and the contact as hidden fields. Anything in a form can be edited by whoever holds it, so the test edits it:
-// it takes the form from the page of a contact the person may open and swaps in other ids, exactly as a browser's developer tools would.
+// The rename form carries the organisation and the contact in its fields (hidden inputs, or the arguments `bind` serialises into the form). Anything in a form can be
+// edited by whoever holds it, so the test edits it: it takes the form from the page of a contact the person may open and swaps in other ids, as developer tools would.
 type Field = [name: string, value: string]
 async function renameForm(cookie: string | null, path: string): Promise<Field[]> {
   const $ = cheerio.load(await html(path, cookie))
@@ -109,7 +109,8 @@ async function submit(cookie: string | null, path: string, fields: Field[], edit
   for (const [name, value] of fields) body.append(name, edit(name, value))
   return request(path, { method: 'POST', body, cookie })
 }
-const swapId = (from: string, to: string, newName: string) => (name: string, value: string) => (name === 'name' ? newName : value === from ? to : value)
+// Wherever the id appears in a field, hidden input or the JSON that `bind` writes into `$ACTION_1:1`: both are plain text in the page and editable by whoever holds it.
+const swapId = (from: string, to: string, newName: string) => (name: string, value: string) => (name === 'name' ? newName : value.split(from).join(to))
 
 describe('A08 the rename form', () => {
   test('A08.4 a form edited to name an Acme contact renames nothing; the honest form renames the person\'s own contact and keeps its email', async () => {
