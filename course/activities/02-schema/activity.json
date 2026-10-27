@@ -1,0 +1,4 @@
+{
+  "title": "Model the CRM",
+  "needs": ["db"]
+}

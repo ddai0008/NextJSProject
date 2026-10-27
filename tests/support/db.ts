@@ -52,3 +52,30 @@ export async function smallestOrg(): Promise<OrgRow & { contacts: number }> {
   )
   return rows[0]
 }
+
+/**
+ * Runs `fn` inside a transaction that is always rolled back, so a test can insert what it likes and leave the database as it found it.
+ */
+export async function inRolledBackTransaction<T>(fn: (client: pg.Client) => Promise<T>): Promise<T> {
+  return withDb(async (client) => {
+    await client.query('begin')
+    try {
+      return await fn(client)
+    } finally {
+      await client.query('rollback')
+    }
+  })
+}
+
+/** Runs one statement inside a savepoint and returns its SQLSTATE ("no error" if it worked); the transaction stays usable afterwards. */
+export async function stateOf(client: pg.Client, text: string, values: unknown[] = []): Promise<string> {
+  await client.query('savepoint attempt')
+  try {
+    await client.query(text, values)
+    return 'no error'
+  } catch (error) {
+    return sqlState(error) ?? `other error: ${String((error as Error).message).slice(0, 160)}`
+  } finally {
+    await client.query('rollback to savepoint attempt')
+  }
+}

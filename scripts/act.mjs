@@ -288,7 +288,7 @@ async function main() {
       const vitest = spawn(process.execPath, args, { cwd: root, stdio: 'inherit', env: { ...process.env, ...env } })
       vitest.on('exit', (c) => resolveCode(c ?? 1))
     })
-    if (code === 0 && !valueOf('-t')) {
+    if (code === 0 && !valueOf('-t') && !process.env.ACT_NO_PROGRESS) {
       // `--upto N` passing means 1..N all pass; a single activity counts only if it is the next one in line.
       const last = selected[selected.length - 1].number
       const completed = existsSync(progressFile) ? JSON.parse(readFileSync(progressFile, 'utf8')).completed : 0
