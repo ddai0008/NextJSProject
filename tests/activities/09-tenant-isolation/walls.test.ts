@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import type { RequestContext } from '../../../lib/dal/types'
 import { sql } from '../../support/db'
 import { env } from '../../support/env'
-import { describePlan, outcomeReplayed, planOfReplayed, recordQueries, selectsFrom } from '../../support/queries'
+import { describePlan, inReplayedSession, outcomeReplayed, planOfReplayed, recordQueries, selectsFrom } from '../../support/queries'
 import { request, signIn } from '../../support/http'
 import { ctxOf, seeded } from '../../support/people'
 
@@ -13,7 +13,7 @@ import { ctxOf, seeded } from '../../support/people'
 // The pool of this process is created from this setting when db/client is first imported (it is imported dynamically below, after this line).
 process.env.DB_POOL_MAX = '1'
 
-const TENANT_TABLES = ['contacts', 'companies', 'deals', 'stages'] as const
+const TENANT_TABLES = ['contacts', 'companies', 'deals', 'stages', 'memberships'] as const
 const appClient = async () => {
   const client = new pg.Client({ connectionString: env.appDbUrl() })
   await client.connect()
@@ -33,6 +33,7 @@ async function attempt(client: pg.Client, text: string, values: unknown[] = []):
 
 let acme: RequestContext
 let kestrel: RequestContext
+let freshRole = ''
 beforeAll(async () => {
   acme = await ctxOf(seeded.acme.rep, 'acme')
   kestrel = await ctxOf(seeded.kestrel.rep, 'kestrel')
@@ -49,6 +50,7 @@ describe('A09 the application connects with restricted credentials', () => {
         const [owner] = (await client.query('select tableowner from pg_tables where schemaname = $1 and tablename = $2', ['public', table])).rows
         expect(owner?.tableowner, `owner of ${table}: the owner of a table is exempt from row-level security`).not.toBe(who.rolname)
       }
+      freshRole = who.rolname
     } finally {
       await client.end()
     }
@@ -68,6 +70,16 @@ describe('A09 the application connects with restricted credentials', () => {
     for (const s of sessions) {
       expect(owners.has(s.usename), `the running app (or a pool in this process) is connected as "${s.usename}", which owns a tenant table`).toBe(false)
       expect({ superuser: s.rolsuper, bypassRls: s.rolbypassrls }, `connected as "${s.usename}"`).toEqual({ superuser: false, bypassRls: false })
+    }
+
+    // pg_stat_activity and the URL only name the LOGIN role. A role that is a member of a table's owner takes on the owner's exemption (it inherits the owner's privileges, or can
+    // SET ROLE to it), so ask the catalog whether any role the app uses is a member of any owner.
+    const used = [...new Set([freshRole, ...sessions.map((s) => s.usename)])]
+    for (const role of used) {
+      for (const owner of owners) {
+        const [membership] = await sql<{ usage: boolean; member: boolean }>("select pg_has_role($1::name, $2::name, 'USAGE') as usage, pg_has_role($1::name, $2::name, 'MEMBER') as member", [role, owner])
+        expect(membership.member, `"${role}" is a member of "${owner}", which owns a tenant table (inherits its privileges: ${membership.usage}; may SET ROLE to it: ${membership.member}): the owner's exemption from row-level security comes with it`).toBe(false)
+      }
     }
   })
 })
@@ -90,6 +102,10 @@ describe('A09 with the application\'s credentials and no tenant context', () => 
       expect('error' in change || change.rows === 0, `updating contacts as the app, no context: ${JSON.stringify(change)}`).toBe(true)
       const erase = await attempt(client, 'delete from contacts where org_id = $1', [acme.orgId])
       expect('error' in erase || erase.rows === 0, `deleting contacts as the app, no context: ${JSON.stringify(erase)}`).toBe(true)
+      const promote = await attempt(client, "update memberships set role = 'admin' where org_id = $1", [acme.orgId])
+      expect('error' in promote || promote.rows === 0, `promoting members as the app, no context: ${JSON.stringify(promote)}`).toBe(true)
+      const join = await attempt(client, "insert into memberships (org_id, user_id, role) values ($1, $2, 'admin')", [acme.orgId, kestrel.userId])
+      expect('error' in join, `adding a member to an organisation as the app, no context: ${JSON.stringify(join)}`).toBe(true)
     } finally {
       await client.end()
     }
@@ -192,5 +208,48 @@ describe('A09 no side channel through errors', () => {
     } finally {
       await sql('delete from contacts where id = $1', [row.id])
     }
+  })
+})
+
+describe('A09 the table that says who may do what', () => {
+  test('A09.7 incident: a role-change statement that forgot its organisation filter, sent as the app in Kestrel\'s context, changes nobody in Acme and cannot even see Acme\'s members', async () => {
+    // The incident: member management filtered by organisation in application code only. A Kestrel admin who got that filter wrong (or whose request skipped it) could change an
+    // Acme user's role: a privilege escalation across tenants. A08's walker finds such a function today; the question here is what the DATABASE does when nobody has found it.
+    // So the probes are the statements such a function would send, with no organisation filter (or the other organisation's), sent as the app's user after replaying what the DAL does
+    // to name Kestrel as the tenant.
+    const { listMembers } = await import('../../../lib/dal/members')
+    const kestrelAdmin = await ctxOf(seeded.kestrel.admin, 'kestrel')
+    const { queries } = await recordQueries(() => listMembers(kestrelAdmin))
+    const at = queries.findIndex((q) => selectsFrom([q], 'memberships').length > 0)
+    expect(at, 'the DAL read memberships to list the members').toBeGreaterThanOrEqual(0)
+    const probe = (text: string, values: unknown[]) =>
+      inReplayedSession(queries, at, async (client) => {
+        try {
+          const result = await client.query(text, values)
+          return { rows: result.rows, count: result.rowCount ?? result.rows.length }
+        } catch (error) {
+          return { error: String((error as { code?: string }).code ?? (error as Error).message) }
+        }
+      }) as Promise<{ rows: { n?: number }[]; count: number } | { error: string }>
+    const none = (result: Awaited<ReturnType<typeof probe>>) => 'error' in result || result.count === 0
+    const acmeRep = acme.userId
+    const [before] = await sql<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [acme.orgId, acmeRep])
+
+    const mine = await probe('select count(*)::int as n from memberships where org_id = $1', [kestrelAdmin.orgId])
+    expect('rows' in mine && (mine.rows[0].n ?? 0) > 0, `Kestrel's own members are visible in Kestrel's context, so zero below means something: ${JSON.stringify(mine)}`).toBe(true)
+
+    const escalation = await probe("update memberships set role = 'admin' where user_id = $1 returning user_id", [acmeRep])
+    expect(none(escalation), `UPDATE memberships ... WHERE user_id = <an Acme user> (no organisation filter): ${JSON.stringify(escalation)}`).toBe(true)
+    const wholeOrg = await probe("update memberships set role = 'admin' where org_id = $1", [acme.orgId])
+    expect(none(wholeOrg), `UPDATE memberships ... WHERE org_id = <Acme>: ${JSON.stringify(wholeOrg)}`).toBe(true)
+    const seen = await probe('select user_id from memberships where org_id = $1', [acme.orgId])
+    expect(none(seen), `SELECT ... FROM memberships WHERE org_id = <Acme>: ${JSON.stringify(seen)}`).toBe(true)
+    const erased = await probe('delete from memberships where org_id = $1', [acme.orgId])
+    expect(none(erased), `DELETE FROM memberships WHERE org_id = <Acme>: ${JSON.stringify(erased)}`).toBe(true)
+    const planted = await probe("insert into memberships (org_id, user_id, role) values ($1, $2, 'admin')", [acme.orgId, kestrelAdmin.userId])
+    expect('error' in planted, `INSERT a Kestrel user as an Acme admin: ${JSON.stringify(planted)}`).toBe(true)
+
+    const [after] = await sql<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [acme.orgId, acmeRep])
+    expect(after.role, 'the Acme user\'s role, read as the owner afterwards').toBe(before.role)
   })
 })

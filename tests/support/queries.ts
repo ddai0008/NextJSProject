@@ -88,6 +88,9 @@ async function inReplayedUnit<T>(queries: RecordedQuery[], index: number, url: s
   }
 }
 
+/** Runs `fn` on a session of the application's user after replaying what the code did before `queries[index]` on its connection (see inReplayedUnit); rolled back afterwards. */
+export const inReplayedSession = (queries: RecordedQuery[], index: number, fn: (client: pg.Client) => Promise<unknown>, url: string = env.appDbUrl()) => inReplayedUnit(queries, index, url, (client) => fn(client))
+
 /** The plan of `queries[index]` for the application's user, after replaying its unit of work (see inReplayedUnit). */
 export async function planOfReplayed(queries: RecordedQuery[], index: number, { url = env.appDbUrl(), avoidSeqScan = true }: { url?: string; avoidSeqScan?: boolean } = {}): Promise<PlanNode[]> {
   return inReplayedUnit(queries, index, url, async (client, target) => {
