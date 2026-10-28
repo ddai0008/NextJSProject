@@ -1,7 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
 import { sql } from '../../support/db'
 import { signIn } from '../../support/http'
-import { ctxOf, seeded } from '../../support/people'
 import { inReplayedSession, recordQueries, selectsFrom } from '../../support/queries'
 
 // The other way into the membership table. A07.16 calls `requireRole` with a real sign-in; here the statements it sends are recorded, and replayed as the application's user,
@@ -27,7 +26,8 @@ describe('A09 the session that finds out which organisations a person belongs to
     const { requireRole } = await import('../../../lib/dal/session')
     // A person who is a rep in Kestrel and a manager in Acme: two memberships, in two organisations.
     const person = await signIn('kestrel', 'rep', undefined, [['acme', 'manager']])
-    const acme = await ctxOf(seeded.acme.rep, 'acme')
+    // An organisation this person does NOT belong to: adding them there must be refused for the right reason, not because the row already exists.
+    const [lumen] = await sql<{ id: string }>("select id from orgs where slug = 'lumen'")
     jar.cookie = person.cookie!
     const { result, queries } = await recordQueries(() => requireRole('kestrel', 'rep'))
     expect(result, 'requireRole works for this person').toMatchObject({ userId: person.userId, orgSlug: 'kestrel', role: 'rep' })
@@ -56,8 +56,8 @@ describe('A09 the session that finds out which organisations a person belongs to
     expect(none(promote), `the person changing their OWN roles from that session: ${JSON.stringify(promote)}`).toBe(true)
     const leave = await probe('delete from memberships where user_id = $1', [person.userId])
     expect(none(leave), `the person deleting their own memberships from that session: ${JSON.stringify(leave)}`).toBe(true)
-    const join = await probe("insert into memberships (org_id, user_id, role) values ($1, $2, 'admin')", [acme.orgId, person.userId])
-    expect('error' in join, `the person adding themselves to Acme as an admin: ${JSON.stringify(join)}`).toBe(true)
+    const join = await probe("insert into memberships (org_id, user_id, role) values ($1, $2, 'admin') returning org_id", [lumen.id, person.userId])
+    expect('error' in join, `the person adding themselves to an organisation they do not belong to, as an admin: ${JSON.stringify(join)}`).toBe(true)
 
     const after = await sql<{ org_id: string; role: string }>('select org_id, role from memberships where user_id = $1 order by org_id', [person.userId])
     expect(after, 'their memberships, read as the owner afterwards').toEqual(before)
