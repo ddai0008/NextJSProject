@@ -112,7 +112,7 @@ Run `npm run act -- 9`, then `npm run act:upto -- 9`.
 - [ ] The consequences include something that gets *harder*, and something that is **still not protected**.
 - [ ] I can say what would make me revisit this decision.
 - [ ] Every claim about Postgres in the ADR is one I measured or one I read in the manual (and said so). In particular, any claim that a function is "safe" to treat specially has a probe behind it, not an argument.
-- [ ] Before the first run I wrote down how many of the 5 tests I expected to pass.
+- [ ] Before the first run I wrote down how many of the 6 tests I expected to pass.
 
 ## Official docs
 

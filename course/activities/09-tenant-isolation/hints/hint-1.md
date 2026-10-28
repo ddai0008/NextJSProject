@@ -17,4 +17,4 @@ For each, work out: what does a *forgotten filter* do? What does a *migration* c
 
 **Fail closed.** Decide what "nobody said which tenant this is" must produce, before deciding how a tenant is named. Write that sentence into the ADR's Decision.
 
-**Before you run anything:** write down how many of the 5 tests you expect to pass on the first run, and which one you are least sure of. (A09.1 needs only the ADR. The others need the database and the DAL.)
+**Before you run anything:** write down how many of the 6 tests you expect to pass on the first run, and which one you are least sure of. (A09.1 needs only the ADR. The others need the database and the DAL.)
