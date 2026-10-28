@@ -50,6 +50,7 @@
 - A **container** is disposable; a **volume** is not. The container can be deleted and re-created, and the data stays as long as
   the volume does. *Where* inside the container the volume is mounted must be where the image actually keeps its data. Images
   change that between major versions.
+- **Two database roles, on purpose.** The container is created with a superuser, `postgres`. `npm run db:up` then makes sure the role you will really use exists: `crm`, which owns the database `crm`, runs the migrations and the seed, and is **not** a superuser (it can create databases and roles, like the administrator of a managed Postgres). The tooling uses `postgres` only for the few steps that need it (creating `crm`, installing the statistics extension the tests read). Why bother? A superuser is exempt from rules that a real owner is not (A09 is about one of them), so a test that passes as a superuser can fail in production.
 - **Migrations.** `db/schema/*.ts` is the state you *want*. `npm run db:generate` compares it with the last snapshot in
   `db/migrations/meta` and writes a SQL file; `npm run db:migrate` runs the SQL files that have not run yet and records them in the
   table `drizzle.__drizzle_migrations`. The SQL is committed to git: it is the history of your schema.
@@ -106,7 +107,7 @@ Run `npm run act -- 1`. Each line is one test; the first failure is usually the 
 ## Stretch goals
 
 - Stop the container with `docker compose down` and start it again with `npm run db:up`. Is your data still there? Now try
-  `docker compose down -v`. What is different, and why does the second one exist?
+  `docker compose down -v`. What is different, and why does the second one exist? (If `npm run db:up` ever tells you that the volume was created by an older `compose.yaml`, this is the command it means.)
 - Hit `/api/health` a few times, then in `npm run psql` run `select calls, query from pg_stat_statements order by calls desc limit 5;`.
   What did your handler cost the database per request?
 - Make the health check give up on a database that answers too slowly (not just one that refuses). Where would the timeout live?

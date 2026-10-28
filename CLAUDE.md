@@ -7,7 +7,7 @@ Notes for the development agent and for people. Keep this short and true: the ag
 - Dev: `npm run dev`. Build: `npm run build`. Lint: `npm run lint`.
 - Typecheck: `npx next typegen && npx tsc --noEmit`. Run `typegen` first: `PageProps` / `LayoutProps` are generated globals, so bare `tsc` fails on a clean checkout.
 - Solutions: `npm run solution 05` prints activity 05's reference solution from the `reference` branch via `git show` (add `-s` to drop npm's banner, `-- --list` to list files). Never check `reference` out in this working tree; to work on it use a separate `git worktree`.
-- Docker: `docker ps` must work in WSL (Docker Desktop with WSL integration on). Postgres runs from `compose.yaml` (`npm run db:up`); use `npm run psql`, not a local `psql`.
+- Docker: `docker ps` must work in WSL (Docker Desktop with WSL integration on). Postgres runs from `compose.yaml` (`npm run db:up`, which also creates the non-superuser owner role `crm`; the container's superuser is `postgres`); use `npm run psql`, not a local `psql`.
 - Test: `npm run act -- N` runs activity N's acceptance tests (starts Postgres, builds the app without a database, runs Vitest; `-t "name"` filters, `--no-build` reuses the build). `npm run act:upto -- N` runs A01..N. Browser tests need `sudo apt install libnspr4 libnss3 libasound2t64`. `ACT_APP_AS_OWNER=1` connects the app as the database owner (to test the first wall without row-level security, from A09 on). `npm run start-activity -- N` copies an incident activity's starting code from `reference`.
 
 ## Conventions
