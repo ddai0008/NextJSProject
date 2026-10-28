@@ -14,9 +14,11 @@ describe('A01 Boot the platform', () => {
   })
 
   test('A01.2 Postgres 18 runs from compose.yaml with its data on a named volume', async () => {
-    const version = await withDb(async (c) => (await c.query("select current_setting('server_version_num')::int as v, current_setting('data_directory') as dir")).rows[0], env.devDbUrl())
+    const version = await withDb(async (c) => (await c.query("select current_setting('server_version_num')::int as v")).rows[0], env.devDbUrl())
     expect(version.v, 'Postgres major version').toBeGreaterThanOrEqual(180000)
-    expect(version.dir, 'PGDATA of the 18 image').toMatch(/^\/var\/lib\/postgresql\/18\//)
+    // The owner role is an ordinary one and may not read `data_directory`; the image exports the same path as $PGDATA.
+    const dir = execFileSync('docker', ['compose', 'exec', '-T', 'postgres', 'sh', '-c', 'echo $PGDATA'], { cwd: env.root(), encoding: 'utf8' }).trim()
+    expect(dir, 'PGDATA of the 18 image').toMatch(/^\/var\/lib\/postgresql\/18\//)
     const id = execFileSync('docker', ['compose', 'ps', '-q', 'postgres'], { cwd: env.root(), encoding: 'utf8' }).trim()
     const mounts = JSON.parse(execFileSync('docker', ['inspect', id, '--format', '{{json .Mounts}}'], { encoding: 'utf8' })) as { Type: string; Destination: string }[]
     expect(mounts.some((m) => m.Type === 'volume' && m.Destination === '/var/lib/postgresql'), `named volume mounted where the image keeps its data; mounts were ${JSON.stringify(mounts.map((m) => [m.Type, m.Destination]))}`).toBe(true)
