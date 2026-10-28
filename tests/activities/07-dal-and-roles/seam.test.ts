@@ -3,8 +3,10 @@ import { signIn } from '../../support/http'
 
 // `requireRole(orgSlug, minimum)` is the seam every page and action asks "who is this, and may they?". Pages are covered through HTTP elsewhere in
 // this activity, but two layers (this one and the DAL function behind it) refuse a rep, so HTTP alone cannot tell which of them did. Here the function is
-// called directly, as a request would call it: the request's cookies come from a real sign-in, and the framework's `redirect()` / `notFound()` / `cookies()`
-// are replaced by stand-ins that make the outcome visible. Nothing here knows how sessions are stored, so the same test must keep passing after A10.
+// called directly, as a request would call it: the request's cookies come from a real sign-in, and only `cookies()` / `headers()` (which need a request to exist)
+// are replaced by stand-ins. `redirect()` and `notFound()` are the REAL ones: they throw errors whose `digest` is how Next.js itself recognises them
+// (`NEXT_REDIRECT;replace;/login;307;` and `NEXT_HTTP_ERROR_FALLBACK;404`), and the test reads those digests, so it cannot pass on a stand-in that behaves differently.
+// Nothing here knows how sessions are stored, so the same test must keep passing after A10.
 
 const jar = vi.hoisted(() => ({ cookie: '' }))
 
@@ -20,14 +22,6 @@ vi.mock('next/headers', () => {
     headers: async () => new Headers(jar.cookie ? { cookie: jar.cookie } : {}),
   }
 })
-vi.mock('next/navigation', () => ({
-  redirect: (url: string) => {
-    throw new Error(`REDIRECT ${url}`)
-  },
-  notFound: () => {
-    throw new Error('NOT_FOUND')
-  },
-}))
 
 let requireRole: typeof import('../../../lib/dal/session').requireRole
 let ForbiddenError: typeof import('../../../lib/dal/errors').ForbiddenError
@@ -43,6 +37,9 @@ async function asking(orgSlug: string, minimum: 'rep' | 'manager' | 'admin') {
     return { ctx: await requireRole(orgSlug, minimum) }
   } catch (error) {
     if (error instanceof ForbiddenError) return { threw: 'forbidden' as const }
+    const digest = (error as { digest?: unknown } | null)?.digest
+    if (typeof digest === 'string' && digest.startsWith('NEXT_REDIRECT;')) return { threw: `REDIRECT ${digest.split(';').slice(2, -2).join(';')}` } // as Next.js's own getURLFromRedirectError reads it
+    if (digest === 'NEXT_HTTP_ERROR_FALLBACK;404') return { threw: 'NOT_FOUND' }
     return { threw: error instanceof Error ? error.message : String(error) }
   }
 }

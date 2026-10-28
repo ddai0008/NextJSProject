@@ -17,7 +17,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE O
 ALTER TABLE "contacts" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "contacts" USING ("org_id" = /* the setting, as a uuid; think about NULL and '' */);--> statement-breakpoint
 /* … the same for companies, deals and stages … */
-/* … and whatever the search needs, if the plan changed … */
+/* … nothing else is needed for the list. What the search needs, if anything, is a decision for your ADR, backed by a measurement … */
 ```
 
 **`withTenant` in `db/client.ts`:**

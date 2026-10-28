@@ -15,7 +15,9 @@
 >
 > Support reproduced it on the contact page *and* on the mobile endpoint. Nobody has checked anything else.
 >
-> Jun's addition: "We finished the roles work last week and it holds. These pages predate it: the mobile release and the 'quick rename' form were written by a contractor before there was a `RequestContext`. I don't want a fix that patches the one link Wendell tried. Find every path that does this, fix it where the mistake is made, and give me tests that would catch the *next* one. Legal needs a one-page account of what happened. Not found, not forbidden: we don't confirm to Kestrel that Acme's contact exists."
+> Priya Nair (Data & Compliance) adds: "While you are in there: the contact page has a 'quick rename' form, and the finance team's monthly CSV export (`/api/export/contacts?org=<slug>`) also takes an organisation from the request. After the pen-test (A06) we made sure that a visitor with no session gets nothing from it. I don't know what it checks for someone who *is* signed in. Please include both."
+>
+> Jun's addition: "We finished the roles work last week and it holds. These paths predate it: the mobile release and the 'quick rename' form were written by a contractor before there was a `RequestContext`, and the export was written for a script. I don't want a fix that patches the one link Wendell tried. Fix the four places named here (the contact page, the mobile endpoint, the rename form, the export) where the mistake is made, and give me tests that would catch the *next* one, wherever it turns up. Legal needs a one-page account of what happened. Not found, not forbidden: we don't confirm to Kestrel that Acme's contact exists."
 
 ## What you will learn
 
@@ -52,7 +54,7 @@ Read all four as you would at work, with one question for each line that touches
 1. **Run the tests as they are:** `npm run act -- 8`. Eight of the nine fail (A08.7 passes for now: read why when you get to it). That is your reproduction, and the messages say which path leaked what.
 2. **See it with your own eyes.** Sign in as a Kestrel user in the browser: register a user at `/register`, then `npm run db:grant -- <their email> kestrel rep` to make them a member of Kestrel. Get an Acme contact id (`npm run psql -- -c "select c.id, c.name from contacts c join orgs o on o.id = c.org_id where o.slug = 'acme' limit 3"`). Open `/kestrel/contacts/<that id>`.
 3. **Write the first half of `docs/notes/a08-incident.md` now**, before you fix anything: what happened (in words Wendell would recognise), which paths were affected, and *the one sentence that names the mistake*.
-4. **Find the paths the ticket does not name.** Go through the app and list every route that takes an organisation or an id from the request (a path segment, a query string, JSON, a form field), not only the four files you were given. For each: what does it check about the *caller*, and what does it check about the *object*? The ticket says nobody has looked; you are the first to.
+4. **Make your own list of paths.** Go through the app and list every route that takes an organisation or an id from the request (a path segment, a query string, JSON, a form field). The ticket names four (the contact page, the mobile endpoint, the rename form, the CSV export): is your list longer? For each route: what does it check about the *caller*, and what does it check about the *object*?
 5. **Predict:** how many of the 9 tests will pass when you delete the page's use of `legacy-contacts.ts` and nothing else?
 
 ## The mechanism
@@ -127,7 +129,7 @@ Run `npm run act -- 8`, then `npm run act:upto -- 8`.
 - [ ] I can explain why another organisation's contact answers 404 and a colleague's contact, inside the organisation, answers "forbidden".
 - [ ] A hidden field, a cookie, a header, a query string, a path segment: I know which of them I treat as hostile input, and which of my functions still trusts one.
 - [ ] `docs/notes/a08-incident.md` says what I could not establish.
-- [ ] I looked for paths nobody had listed, and I can name the one I found that was not in the ticket.
+- [ ] I made my own list of routes that take an organisation or an id from the request, compared it with the four the ticket names, and can say why any extra one is safe (or fixed it).
 - [ ] Before the first run I wrote down how many of the 9 tests I expected to pass.
 
 ## Official docs

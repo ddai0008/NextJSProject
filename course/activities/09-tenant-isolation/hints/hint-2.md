@@ -12,6 +12,13 @@ This hint assumes your ADR chose **row-level security on the shared tables**; if
 
 **Who is not covered?** `orgs`, `memberships`, `users` and `sessions` are how a request *finds out* its tenant. Think about why they cannot sit behind the same policy, and write the consequence down.
 
-**The plan.** Run the A03 search through `EXPLAIN` twice: as the owner, and as `crm_app` with the setting on. Compare. If they differ, ask Postgres why: it will not evaluate a function ahead of a policy filter unless the function is *leakproof* (`select proname, proleakproof from pg_proc where proname = 'texticlike'`). What are your options, and what does each one assume or cost? The ADR is the place to say which you took.
+**The plan.** Run the A03 search through `EXPLAIN` twice: as the owner, and as `crm_app` with the setting on. Compare. If they differ, ask Postgres why: it will not evaluate a function ahead of a policy filter unless the function is *leakproof* (`select proname, proleakproof from pg_proc where proname = 'texticlike'`). Your options, none of them free:
+
+- accept what the planner does: the policy uses the `org_id` index and the search is applied to that tenant's rows. How slow does that get? Measure it: load one tenant with 10k, 50k, 100k contacts and time a search that matches nothing;
+- a different isolation strategy, whose indexes the policy does not hide;
+- a function that runs with its owner's rights and does the search itself: what does the policy do inside it?
+- mark the function leakproof. Before you take that one, read what the manual says leakproof promises, then **run the probe of A09.6 against the plan it produces**. A promise about error messages is only as good as the weakest input anyone can send.
+
+The ADR is the place to say which you took and what you measured.
 
 **Run the tests as you go:** `npm run act -- 9 -t A09.2`, then `A09.3`, and so on. After A09.4 passes, run `npm run act:upto -- 9`: the earlier DAL tests now run as `crm_app`, so a function that forgot the wrapper shows up as an empty result.

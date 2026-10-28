@@ -63,12 +63,12 @@ export async function planOf(query: RecordedQuery, { url = env.dbUrl(), avoidSeq
 }
 
 /**
- * The plan of `queries[index]` for the APPLICATION'S database user (not the owner: owners are exempt from row-level security, so a plan measured as the owner
- * says nothing about what the app runs), after replaying what the code did on that connection before it in the same unit of work: BEGIN, whatever it did to say which
- * tenant this is, and so on. That makes the check independent of the way tenants are isolated: if a statement on the connection establishes the context, the replay does too.
+ * Replays, as the APPLICATION'S database user (not the owner: owners are exempt from row-level security, so what they see says nothing about what the app runs),
+ * what the code did on a connection before `queries[index]` in the same unit of work (BEGIN, whatever it did to say which tenant this is, and so on), and then calls
+ * `fn` on that session. That makes a check independent of the way tenants are isolated: if a statement on the connection establishes the context, the replay does too.
  * Everything runs in a transaction that is rolled back, so replaying cannot change data.
  */
-export async function planOfReplayed(queries: RecordedQuery[], index: number, { url = env.appDbUrl(), avoidSeqScan = true }: { url?: string; avoidSeqScan?: boolean } = {}): Promise<PlanNode[]> {
+async function inReplayedUnit<T>(queries: RecordedQuery[], index: number, url: string, fn: (client: pg.Client, target: RecordedQuery) => Promise<T>): Promise<T> {
   const target = queries[index]
   const before: RecordedQuery[] = []
   for (let i = index - 1; i >= 0; i--) {
@@ -81,6 +81,16 @@ export async function planOfReplayed(queries: RecordedQuery[], index: number, { 
   try {
     if (!before.length || !/^\s*(begin|start transaction)\b/i.test(before[0].text)) await client.query('begin')
     for (const q of before) await client.query(q.text, q.values as any[])
+    return await fn(client, target)
+  } finally {
+    await client.query('rollback').catch(() => undefined)
+    await client.end()
+  }
+}
+
+/** The plan of `queries[index]` for the application's user, after replaying its unit of work (see inReplayedUnit). */
+export async function planOfReplayed(queries: RecordedQuery[], index: number, { url = env.appDbUrl(), avoidSeqScan = true }: { url?: string; avoidSeqScan?: boolean } = {}): Promise<PlanNode[]> {
+  return inReplayedUnit(queries, index, url, async (client, target) => {
     if (avoidSeqScan) await client.query('set enable_seqscan = off')
     const { rows } = await client.query(`explain (format json) ${target.text}`, target.values as any[])
     const nodes: PlanNode[] = []
@@ -90,10 +100,17 @@ export async function planOfReplayed(queries: RecordedQuery[], index: number, { 
     }
     walk(rows[0]['QUERY PLAN'][0].Plan)
     return nodes
-  } finally {
-    await client.query('rollback').catch(() => undefined)
-    await client.end()
-  }
+  })
+}
+
+/** What `queries[index]` does for the application's user after replaying its unit of work, optionally with other parameter values: how many rows it returned, or its SQLSTATE. */
+export async function outcomeReplayed(queries: RecordedQuery[], index: number, { values, url = env.appDbUrl() }: { values?: unknown[]; url?: string } = {}): Promise<{ rows: number } | { error: string }> {
+  return inReplayedUnit(queries, index, url, (client, target) =>
+    client.query(target.text, (values ?? target.values) as any[]).then(
+      (result) => ({ rows: result.rowCount ?? result.rows.length }),
+      (error: { code?: string; message?: string }) => ({ error: String(error.code ?? error.message) }),
+    ),
+  )
 }
 
 export const describePlan = (nodes: PlanNode[]) =>

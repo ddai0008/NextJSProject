@@ -8,7 +8,8 @@
 //   npm run act -- --list            list the activities
 //   ACT_APP_AS_OWNER=1 npm run act -- 8   connect the app (and the DAL tests) as the database owner instead of crm_app. From A09 on the restricted role's row-level
 //                                    security would hide a missing filter in your own queries; the owner role does not, so use this to check the first wall on its own.
-//                                    (A09's own tests are expected to fail in this mode.)
+//                                    (A09's own tests are expected to fail in this mode.) The runner checks that the owner really is exempt: with FORCE ROW LEVEL SECURITY
+//                                    and an owner that is neither a superuser nor BYPASSRLS, the flag would silently change nothing, and the run stops instead.
 //
 // What it does for you: checks Node and Docker, starts Postgres from compose.yaml, builds a test database (migrations + a
 // small deterministic seed, cached until a migration changes), gives this run its own copy of it, builds the app WITHOUT a
@@ -18,7 +19,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symli
 import { createServer } from 'node:net'
 import { join, resolve } from 'node:path'
 import pg from 'pg'
-import { createFromTemplate, databaseExists, dropDatabase, roleExists, templateHash, urlFor, withAdmin } from './lib/db.mjs'
+import { createFromTemplate, databaseExists, dropDatabase, roleExists, templateHash, urlFor, withAdmin, withClient } from './lib/db.mjs'
 import { seed } from './lib/seed.mjs'
 
 const root = resolve(import.meta.dirname, '..')
@@ -257,6 +258,14 @@ async function main() {
         await createFromTemplate(runDb, template)
         const appRole = !process.env.ACT_APP_AS_OWNER && (await roleExists('crm_app')) ? { user: 'crm_app', password: 'crm_app' } : {}
         Object.assign(env, { ACT_RUN_DB: runDb, ACT_DB_URL: urlFor(runDb), ACT_APP_DB_URL: urlFor(runDb, appRole), DATABASE_URL: urlFor(runDb, appRole) })
+        if (process.env.ACT_APP_AS_OWNER) {
+          // The flag is only worth anything if the owner sees every tenant with no tenant named. A superuser or BYPASSRLS owner always does; a plain owner does unless FORCE ROW LEVEL SECURITY is on.
+          const rows = await withClient(urlFor(runDb), async (c) => (await c.query('select (select count(*) from contacts)::int as n, (select count(*) from orgs)::int as orgs')).rows[0])
+          if (rows.n === 0 && rows.orgs > 0) {
+            console.error('ACT_APP_AS_OWNER=1 would change nothing: as the owner, with no tenant named, `select count(*) from contacts` is 0 although the seed loaded rows. Row-level security binds the owner here (FORCE ROW LEVEL SECURITY on a table whose owner is not a superuser or BYPASSRLS), so the app would still be walled in. Run without the flag, or connect the owner with a role that bypasses the policies.')
+            process.exit(1)
+          }
+        }
       } else {
         step('no migrations yet (db/migrations): tests that need the test database will fail')
       }

@@ -11,11 +11,28 @@ State of the course. Updated after each step. Struggles are recorded so later ac
 | 2. Course plan | `course/PLAN.md` approved for Phase 1 (A01-A09); Phases 2-4 are an outline. |
 | 3. Phase 1 | Generated 2026-10-27 (A01-A09, ~33.5 h). Verified on the reference branch: `npm run act:upto -- 9` passes, also with the test files in shuffled orders. **Waiting for your review.** No activity has been started by the learner yet. |
 
+## Hours: estimate and actual
+
+Fill in the **Actual** column as you finish each activity (to the nearest half hour, including reading, predictions and the self-review), and say in the last column what took longer or shorter than expected. Phase 2's estimates will be recomputed from the ratio of actual to estimated hours, so honest numbers are worth more than flattering ones.
+
+| Activity | Estimate (h) | Actual (h) | What took longer or shorter, and why |
+| --- | --- | --- | --- |
+| A01 Boot the platform | 1.5 | | |
+| A02 Model the CRM | 3 | | |
+| A03 Contacts at 10k rows | 5.5 | | |
+| A04 Create and edit contacts | 4.5 | | |
+| A05 Sessions from first principles | 5 | | |
+| A06 CSRF and the proxy gate | 3 | | |
+| A07 Who is asking, and for which organisation? | 4 | | |
+| A08 Kestrel Solar can see Acme's contacts | 3 | | |
+| A09 Post-incident: how do we isolate tenants for good? | 4 | | |
+| **Phase 1** | **33.5** | | |
+
 ## Learner profile
 
 - Software engineering student; comfortable with TypeScript, React, SQL, full-stack basics. Java: beginner.
 - Last Next.js: "pretty recent", App Router, exact version not remembered. No old project to calibrate from; the CRM course is the project.
-- Time: 14 h/week stated for the course; for Phase 1, "2 weeks, 3 hours each day" (about 42 h if every day counts). Phase 1 is estimated at ~33 h.
+- Time: **5 weekdays a week, 3 h a day (15 h/week)**, and a phase should fit in **2 or 3 weeks** (30-45 h) (stated 2026-10-28; earlier: "14 h/week" and "2 weeks, 3 hours each day"). Phase 1 is estimated at ~33.5 h, about 2.2 weeks: inside the 3-week cap, just over the 2-week one.
 
 ## Diagnostic results (2026-10-27)
 

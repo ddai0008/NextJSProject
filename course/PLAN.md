@@ -11,7 +11,7 @@ bundled in `node_modules/next/dist/docs` (they match the installed 16.4.3) and t
 | # | Decision | Applied how |
 | --- | --- | --- |
 | 1 | Approve Phase 1; Phases 2-4 outline only; regenerate each phase after the previous one, from `PROGRESS.md`; re-estimate Phase 3 for your Java level | Section 2 (Phase 1 in full), section 3 (outline); Phase 3 re-estimated in section 3 |
-| 2 | Java: beginner. Time: 14 h/week | Java primer + more guidance in Phase 3; totals in section 1 |
+| 2 | Java: beginner. Time: 14 h/week first stated; **5 weekdays x 3 h = 15 h/week, and a phase should fit in 2 or 3 weeks (30-45 h)** (restated 2026-10-28) | Java primer + more guidance in Phase 3; totals in section 1 |
 | 3 | Docker works in WSL; use `docker exec` for `psql` | Verified (spike S1); A01 will ship an `npm run psql` wrapper around `docker compose exec` |
 | 4 | Solutions on `reference` only, hints stay on `main`; a script prints a solution without switching branches | `npm run solution 05` (PR #5) |
 | 5 | Node 24 from one version file; JDK 25 deferred to Phase 3 | `.nvmrc` read by CI and by `scripts/use-node.sh` (PR #5) |
@@ -39,13 +39,15 @@ Phase 4  Production        Caddy -> web x2 -> service -> Postgres, Redis; CI, CS
 
 Legend: **F** feature · **I** incident (a planted bug you find) · **D** design review (you write an ADR *before* coding) · **H** hardening.
 
-| Phase | Activities | Estimate | At 14 h/week |
-| --- | --- | --- | --- |
-| 1. Monolith | A01-A09 | ~33.5 h (31 h before the diagnostic) | ~2.5 weeks |
-| 2. Product grows (outline) | A10-A22 | ~48 h | ~3.5 weeks |
-| 3. Extract Deals (outline, beginner Java) | A23-A32 + ~12 h Java primer | ~63 h | ~4.5 weeks |
-| 4. Production (outline) | A33-A38 | ~23 h | ~1.5 weeks |
-| **Total** | 38 activities | **~168 h** | **~12 weeks** |
+| Phase | Activities | Estimate | At 15 h/week (5 x 3 h) | Fits a 2-3 week cap (30-45 h)? |
+| --- | --- | --- | --- | --- |
+| 1. Monolith | A01-A09 | ~33.5 h (31 h before the diagnostic) | ~2.2 weeks | yes, inside 3 weeks, just over 2 |
+| 2. Product grows (outline) | A10-A22 | ~48 h | ~3.2 weeks | **no**: trim or split when it is generated |
+| 3. Extract Deals (outline, beginner Java) | A23-A32 + ~12 h Java primer | ~63 h | ~4.2 weeks | **no**: split into two phases (extraction, then the BFF hardening) |
+| 4. Production (outline) | A33-A38 | ~23 h | ~1.5 weeks | yes |
+| **Total** | 38 activities | **~168 h** | **~11 weeks** | |
+
+The estimates are mine. `PROGRESS.md` has a column for your actual hours; Phase 2 is re-estimated from the ratio of actual to estimated.
 
 Estimates for Phases 2-4 will be redone from your actual Phase 1 pace.
 

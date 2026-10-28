@@ -3,7 +3,8 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import type { RequestContext } from '../../../lib/dal/types'
 import { sql } from '../../support/db'
 import { env } from '../../support/env'
-import { describePlan, planOfReplayed, recordQueries, selectsFrom } from '../../support/queries'
+import { describePlan, outcomeReplayed, planOfReplayed, recordQueries, selectsFrom } from '../../support/queries'
+import { request, signIn } from '../../support/http'
 import { ctxOf, seeded } from '../../support/people'
 
 // A second wall behind the data access layer. These tests do not know HOW you isolate tenants (row-level security, schemas, something else): they connect the way
@@ -38,7 +39,7 @@ beforeAll(async () => {
 })
 
 describe('A09 the application connects with restricted credentials', () => {
-  test('A09.2 the app\'s database user is not a superuser, cannot bypass row-level security, and does not own the tenant tables', async () => {
+  test('A09.2 the app\'s database user (the one the RUNNING app connects with) is not a superuser, cannot bypass row-level security, and does not own the tenant tables', async () => {
     const client = await appClient()
     try {
       const [who] = (await client.query('select r.rolname, r.rolsuper, r.rolbypassrls from pg_roles r where r.rolname = current_user')).rows
@@ -50,6 +51,23 @@ describe('A09 the application connects with restricted credentials', () => {
       }
     } finally {
       await client.end()
+    }
+
+    // The role above is the one in the URL the runner hands out. What matters is the one the RUNNING app (a separate process) uses, so ask the database who is connected
+    // after the app has served a request that reads it.
+    const person = await signIn('acme', 'rep')
+    expect((await request('/acme/contacts', { cookie: person.cookie })).status, 'the app answers').toBeLessThan(500)
+    const sessions = await sql<{ usename: string; rolsuper: boolean; rolbypassrls: boolean }>(
+      `select a.usename, r.rolsuper, r.rolbypassrls
+         from pg_stat_activity a join pg_roles r on r.rolname = a.usename
+        where a.datname = current_database() and a.pid <> pg_backend_pid() and a.backend_type = 'client backend'
+        group by 1, 2, 3`,
+    )
+    expect(sessions.length, 'connections to the database besides this test\'s own: the running app keeps a pool open').toBeGreaterThan(0)
+    const owners = new Set((await sql<{ tableowner: string }>("select distinct tableowner from pg_tables where schemaname = 'public' and tablename = any($1)", [[...TENANT_TABLES]])).map((r) => r.tableowner))
+    for (const s of sessions) {
+      expect(owners.has(s.usename), `the running app (or a pool in this process) is connected as "${s.usename}", which owns a tenant table`).toBe(false)
+      expect({ superuser: s.rolsuper, bypassRls: s.rolbypassrls }, `connected as "${s.usename}"`).toEqual({ superuser: false, bypassRls: false })
     }
   })
 })
@@ -118,7 +136,14 @@ describe('A09 requests that share one pooled connection', () => {
 })
 
 describe('A09 the plan budget, as the application runs it', () => {
-  test('A09.5 the contact list and the search still use an index and no sort, with the second wall in place (A03.9, measured as the app\'s user)', async () => {
+  test('A09.5 the contact list and the search never read the whole table: they use an index (and the list no sort), measured as the app\'s user with the context in place', async () => {
+    // Plans are only comparable between runs if the planner has statistics: the seed ends with VACUUM (ANALYZE), and the cloned test database carries the result.
+    const [stats] = await sql<{ tuples: number; columns: string }>(
+      `select (select reltuples from pg_class where relname = 'contacts' and relkind = 'r')::float8 as tuples,
+              (select count(*) from pg_stats where schemaname = 'public' and tablename = 'contacts' and attname = 'org_id') as columns`,
+    )
+    expect(Number(stats.tuples) > 0 && Number(stats.columns) > 0, 'the planner has statistics for contacts (the seed runs VACUUM (ANALYZE)); without them a plan depends on when autovacuum happened to run').toBe(true)
+
     const { listContacts } = await import('../../../lib/dal/contacts')
     const ctx = await ctxOf(seeded.acme.rep, 'acme')
     const cases: [string, Parameters<typeof listContacts>[1], boolean][] = [
@@ -134,8 +159,35 @@ describe('A09 the plan budget, as the application runs it', () => {
       const plan = await planOfReplayed(queries, queries.indexOf(page))
       const where = `${label}: ${describePlan(plan)}`
       expect(plan.some((n) => n.nodeType === 'Seq Scan' && n.relation === 'contacts'), `sequential scan of contacts (${where})`).toBe(false)
+      expect(plan.some((n) => n.relation === 'contacts' && n.index), `an index is used on contacts (${where})`).toBe(true)
+      // The search may sort (it filters the organisation's rows first); the list may not.
       if (!search) expect(plan.some((n) => n.nodeType === 'Sort' || n.nodeType === 'Incremental Sort'), `sort node (${where})`).toBe(false)
-      else expect(plan.map((n) => n.index ?? '').some((name) => /trgm/.test(name)), `the trigram index serves the search (${where})`).toBe(true)
+    }
+  })
+})
+
+describe('A09 no side channel through errors', () => {
+  test('A09.6 a search pattern that is malformed gives the same answer whether or not ANOTHER tenant has rows that match it', async () => {
+    // Why this test exists: LIKE raises "pattern must not end with escape character" while it MATCHES, which happens only for text that contains what comes before the
+    // trailing backslash. If the database evaluates the search on another tenant's rows before it applies the isolation rule, then for a pattern such as '%secret\' the answer
+    // "error" versus "no rows" tells a stranger whether any other tenant has the word. The access layer escapes search terms, but the second wall must hold when the first one
+    // does not, so the probe sends the hostile pattern straight to the database as the app's user, after replaying what the DAL did on its connection to name the tenant.
+    const { listContacts } = await import('../../../lib/dal/contacts')
+    const token = `zq${Date.now().toString(36)}x`
+    const [row] = await sql<{ id: string }>("insert into contacts (org_id, owner_id, name, email) values ($1, $2, $3, $4) returning id", [acme.orgId, acme.userId, `${token}mark Secretperson`, `${token}.secret@example.test`])
+    try {
+      const placeholder = 'probeterm'
+      const { queries } = await recordQueries(() => listContacts(kestrel, { q: placeholder }))
+      const target = queries.findIndex((q) => /limit/i.test(q.text) && selectsFrom([q], 'contacts').length > 0)
+      expect(target, 'the DAL sent a search SELECT').toBeGreaterThanOrEqual(0)
+      const original = queries[target].values
+      expect(original.some((v) => typeof v === 'string' && v.includes(placeholder)), 'the search term reaches the database as a parameter').toBe(true)
+      const withPattern = (pattern: string) => original.map((v) => (typeof v === 'string' && v.includes(placeholder) ? pattern : v))
+      const present = await outcomeReplayed(queries, target, { values: withPattern(`%${token}mark\\`) }) // the word exists only in ACME's contact, followed by more text
+      const absent = await outcomeReplayed(queries, target, { values: withPattern('%qqqqnonexistent\\') }) // the word exists nowhere
+      expect(present, 'a Kestrel member probing for a word that only Acme has, versus one that nobody has').toEqual(absent)
+    } finally {
+      await sql('delete from contacts where id = $1', [row.id])
     }
   })
 })
