@@ -51,6 +51,7 @@ You do not edit the tests. A test that is wrong is a bug in the course: say so.
 | `npm run act -- N` | Run activity N's acceptance tests. Add `-t "text"` to run tests whose name contains it, `--no-build` to reuse the last build. |
 | `npm run act:upto -- N` | Run activities 1 to N. |
 | `npm run act -- --list` | List the activities. |
+| `ACT_APP_AS_OWNER=1 npm run act -- N` | From A09 on: connect the app as the database owner instead of `crm_app`, to check your own filters without row-level security hiding a mistake. (A09's own tests are expected to fail in this mode.) |
 | `npm run solution N` | Print activity N's reference solution (from the `reference` branch, without switching to it). `-- --list` lists its files. |
 | `npm run start-activity -- N` | Copy an incident activity's starting code into your tree (`--dry-run` shows what it would add). |
 | `npm run db:up` / `db:down` | Start or stop Postgres (Docker Compose). |
