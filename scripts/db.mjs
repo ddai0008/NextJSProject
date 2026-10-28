@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// npm run db:up                           start Postgres (docker compose) and make sure the roles and the dev database `crm` exist
 // npm run db:migrate                      apply db/migrations to the dev database (shows Postgres's own error if one fails)
 // npm run db:reset                          drop the dev database `crm`, re-create it, apply the migrations, load the full seed
 // npm run db:grant -- <email> <org> <role>  make an existing user a member of an organisation (role: admin | manager | rep)
@@ -6,19 +7,26 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { seed } from './lib/seed.mjs'
-import { dropDatabase, migrateDatabase, urlFor, withAdmin, withClient } from './lib/db.mjs'
+import { dropDatabase, ensureCluster, migrateDatabase, prepareDatabase, urlFor, withAdmin, withClient } from './lib/db.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const [command, ...args] = process.argv.slice(2)
 
+async function up() {
+  const result = spawnSync('docker', ['compose', 'up', '-d', '--wait', 'postgres'], { cwd: root, stdio: 'inherit' })
+  if (result.status !== 0) throw new Error('Could not start Postgres (docker compose up --wait). Read the container\'s own explanation with: docker compose logs postgres')
+  await ensureCluster()
+  console.log('Postgres is up. The roles `crm` (owner, not a superuser) and `postgres` (superuser, used only by this tooling) and the database `crm` exist.')
+}
+
 async function reset() {
-  const up = spawnSync('docker', ['compose', 'up', '-d', '--wait', 'postgres'], { cwd: root, stdio: 'inherit' })
-  if (up.status !== 0) throw new Error('Could not start Postgres (docker compose up). Is Docker running?')
+  await up()
   if (!existsSync(join(root, 'db', 'migrations', 'meta', '_journal.json'))) {
     throw new Error('There are no migrations yet. Generate the first one with: npm run db:generate')
   }
   await dropDatabase('crm')
   await withAdmin((c) => c.query('create database crm'))
+  await prepareDatabase('crm')
   await migrateDatabase(urlFor('crm'), root)
   console.log('Migrated. Seeding (full size, about 20 s)...')
   console.log('Seeded:', JSON.stringify(await seed({ url: urlFor('crm'), scale: 'full' })))
@@ -28,6 +36,7 @@ async function reset() {
 // migrator and prints what Postgres said. All pending migrations run in ONE transaction: if one fails, none of them is applied.
 async function migrate() {
   try {
+    await ensureCluster()
     await migrateDatabase(urlFor('crm'), root)
     console.log('Migrations applied to the development database "crm".')
   } catch (error) {
@@ -53,10 +62,11 @@ async function grant() {
 }
 
 try {
-  if (command === 'migrate') await migrate()
+  if (command === 'up') await up()
+  else if (command === 'migrate') await migrate()
   else if (command === 'reset') await reset()
   else if (command === 'grant') await grant()
-  else throw new Error('usage: node scripts/db.mjs <migrate | reset | grant>')
+  else throw new Error('usage: node scripts/db.mjs <up | migrate | reset | grant>')
 } catch (error) {
   console.error(String(error.message ?? error))
   process.exit(1)

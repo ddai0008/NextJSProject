@@ -19,7 +19,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symli
 import { createServer } from 'node:net'
 import { join, resolve } from 'node:path'
 import pg from 'pg'
-import { createFromTemplate, databaseExists, dropDatabase, roleExists, templateHash, urlFor, withAdmin, withClient } from './lib/db.mjs'
+import { createFromTemplate, databaseExists, dropDatabase, ensureCluster, prepareDatabase, roleExists, templateHash, urlFor, withAdmin, withClient } from './lib/db.mjs'
 import { seed } from './lib/seed.mjs'
 
 const root = resolve(import.meta.dirname, '..')
@@ -126,12 +126,12 @@ async function ensureTemplate() {
   for (const old of stale) await dropDatabase(old)
   await withAdmin((c) => c.query(`create database "${name}"`))
   try {
+    await prepareDatabase(name) // the one step that needs a superuser; everything below runs as the ordinary owner `crm`
     const { drizzle } = await import('drizzle-orm/node-postgres')
     const { migrate } = await import('drizzle-orm/node-postgres/migrator')
     const pool = new pg.Pool({ connectionString: urlFor(name), max: 1 })
     try {
       await migrate(drizzle(pool), { migrationsFolder: join(root, 'db', 'migrations') })
-      await pool.query('create extension if not exists pg_stat_statements')
     } catch (error) {
       throw new UserError(`Your migrations do not apply to an empty database:\n${error.cause?.message ?? error.message}`)
     } finally {
@@ -250,6 +250,11 @@ async function main() {
   const servers = []
   try {
     if (needs.has('db') || needs.has('app')) {
+      try {
+        await ensureCluster()
+      } catch (error) {
+        throw new UserError(error.message)
+      }
       await dropLeftoverRunDatabases()
       const template = await ensureTemplate()
       if (template) {
