@@ -25,14 +25,14 @@ Fill in the **Actual** column as you finish each activity (to the nearest half h
 | A06 CSRF and the proxy gate | 3 | | |
 | A07 Who is asking, and for which organisation? | 4 | | |
 | A08 Kestrel Solar can see Acme's contacts | 3 | | |
-| A09 Post-incident: how do we isolate tenants for good? | 4 | | |
-| **Phase 1** | **33.5** | | |
+| A09 Post-incident: how do we isolate tenants for good? | 5.5 | | |
+| **Phase 1** | **35** | | |
 
 ## Learner profile
 
 - Software engineering student; comfortable with TypeScript, React, SQL, full-stack basics. Java: beginner.
 - Last Next.js: "pretty recent", App Router, exact version not remembered. No old project to calibrate from; the CRM course is the project.
-- Time: **5 weekdays a week, 3 h a day (15 h/week)**, and a phase should fit in **2 or 3 weeks** (30-45 h) (stated 2026-10-28; earlier: "14 h/week" and "2 weeks, 3 hours each day"). Phase 1 is estimated at ~33.5 h, about 2.2 weeks: inside the 3-week cap, just over the 2-week one.
+- Time: **5 weekdays a week, 3 h a day (15 h/week)**, and a phase should fit in **2 or 3 weeks** (30-45 h) (stated 2026-10-28; earlier: "14 h/week" and "2 weeks, 3 hours each day"). Phase 1 is estimated at ~35 h, about 2.3 weeks: inside the 3-week cap, over the 2-week one.
 
 ## Diagnostic results (2026-10-27)
 

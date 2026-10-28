@@ -41,11 +41,11 @@ Legend: **F** feature · **I** incident (a planted bug you find) · **D** design
 
 | Phase | Activities | Estimate | At 15 h/week (5 x 3 h) | Fits a 2-3 week cap (30-45 h)? |
 | --- | --- | --- | --- | --- |
-| 1. Monolith | A01-A09 | ~33.5 h (31 h before the diagnostic) | ~2.2 weeks | yes, inside 3 weeks, just over 2 |
+| 1. Monolith | A01-A09 | ~35 h (31 h before the diagnostic and the review) | ~2.3 weeks | yes, inside 3 weeks, over 2 |
 | 2. Product grows (outline) | A10-A22 | ~48 h | ~3.2 weeks | **no**: trim or split when it is generated |
 | 3. Extract Deals (outline, beginner Java) | A23-A32 + ~12 h Java primer | ~63 h | ~4.2 weeks | **no**: split into two phases (extraction, then the BFF hardening) |
 | 4. Production (outline) | A33-A38 | ~23 h | ~1.5 weeks | yes |
-| **Total** | 38 activities | **~168 h** | **~11 weeks** | |
+| **Total** | 38 activities | **~170 h** | **~11.5 weeks** | |
 
 The estimates are mine. `PROGRESS.md` has a column for your actual hours; Phase 2 is re-estimated from the ratio of actual to estimated.
 
@@ -66,7 +66,7 @@ Phase 1 runs A01-A04 at L1, A05-A09 at L2/L3.
 
 ---
 
-## 2. Phase 1: Monolith (Next.js + Postgres), ~33.5 h. Generated; awaiting your review.
+## 2. Phase 1: Monolith (Next.js + Postgres), ~35 h. Generated; reviewed once.
 
 Every Phase 1 test is black-box: it asserts HTTP, database or browser behaviour (plus `EXPLAIN` plan shapes), never wall-clock time
 and never how your code is organised, with three named exceptions: the **seam test** below (A05, tightened in A07), A07's check that no client component
@@ -82,7 +82,7 @@ imports the DAL, and the structure check on A09's ADR file. "Browser" tests need
 | 06 | I | CSRF and the proxy gate | See what Server Actions check for free and what route handlers don't, and what a proxy gate really covers. | 3 |
 | 07 | F | Who is asking, and for which org? | A data access layer, `requireRole()`, and the admin/manager/rep permission matrix enforced where the data is read. | 4 |
 | 08 | I | "Kestrel Solar can see Acme's contacts" | Reproduce, locate and fix a cross-tenant leak, at the right layer. | 3 |
-| 09 | D | Post-incident: how do we isolate tenants for good? | Choose an isolation strategy in an ADR, then implement a second wall behind your DAL. | 4 |
+| 09 | D | Post-incident: how do we isolate tenants for good? | Choose an isolation strategy in an ADR, then implement a second wall behind your DAL, including the table that says who may do what. | 5.5 |
 
 ### The seam (acceptance criterion for A05, A07 and later A10)
 

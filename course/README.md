@@ -6,7 +6,7 @@ The course builds the CRM in four phases. **Phase 1 (A01 to A09) is here; Phases
 
 ## Phase 1: a monolith (Next.js, Postgres, no auth library)
 
-About 33.5 hours in total. Levels say how much the ticket spells out: **L1** files and steps, **L2** requirements and a given interface, **L3** behaviour and constraints, **L4** a business ticket, an ADR required.
+About 35 hours in total. Levels say how much the ticket spells out: **L1** files and steps, **L2** requirements and a given interface, **L3** behaviour and constraints, **L4** a business ticket, an ADR required.
 
 | # | Activity | Kind | Level | h | You learn |
 | --- | --- | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ About 33.5 hours in total. Levels say how much the ticket spells out: **L1** fil
 | 06 | [CSRF and the proxy gate](activities/06-csrf-and-proxy/ACTIVITY.md) | incident | L2 | 3 | What `proxy.ts` covers, what route handlers need, defence in depth |
 | 07 | [Who is asking, and for which organisation?](activities/07-dal-and-roles/ACTIVITY.md) | feature | L2 | 4 | A data access layer, `requireRole`, the role matrix |
 | 08 | [Kestrel Solar can see Acme's contacts](activities/08-tenant-leak/ACTIVITY.md) | incident | L3 | 3 | IDOR, fixing at the layer, tests for a class of bug |
-| 09 | [Post-incident: how do we isolate tenants for good?](activities/09-tenant-isolation/ACTIVITY.md) | design review | L4 | 4 | An ADR, row-level security, the pooling trap, plan budgets |
+| 09 | [Post-incident: how do we isolate tenants for good?](activities/09-tenant-isolation/ACTIVITY.md) | design review | L4 | 5.5 | An ADR, row-level security, the pooling trap, plan budgets, error side channels, the membership table |
 
 ```
 A01 ─ A02 ─ A03 ─ A04 ─ A05 ─ A06 ─ A07 ─ A08 ─ A09

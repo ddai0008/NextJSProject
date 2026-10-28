@@ -1,6 +1,6 @@
 # A09 · Post-incident: how do we isolate tenants for good?
 
-> **Phase 1 · Design review · Level L4 (a business ticket and acceptance tests; an ADR is required) · about 4 h**
+> **Phase 1 · Design review · Level L4 (a business ticket and acceptance tests; an ADR is required) · about 5.5 h**
 > Needs: A08 done and `npm run act:upto -- 8` green. This is the last activity of Phase 1. **Write the decision record before you write any code.**
 
 ## The ticket
@@ -11,6 +11,8 @@
 > The board asked one question, and I could not answer it: **"If an engineer forgets a filter tomorrow, what stops the leak?"** Today the honest answer is "nothing". We fixed four paths and wrote tests that look for the *kind* of mistake, but a test only catches mistakes somebody imagined.
 >
 > Acme's security contact wants our written position on tenant isolation, and our insurer asks whether tenants are separated by the database or only by our code. I want an answer that does not depend on who wrote the query.
+>
+> A second thing, from Northgate's retest of the admin screens (Priya Nair forwarded it): "With an administrator account at Kestrel we called the role-change function with the id of an Acme user and the organisation filter left out of the query, as a careless change could do, and the Acme user became an admin." In the code that filter is there, and A08's tests would notice if it went. But the board's question applies to **who may do what** even more than to contacts: if that filter goes missing, is there anything in the database that says no? Today the answer is also "nothing".
 >
 > Constraints: we release weekly, so no big-bang rewrite; our customers are mostly small but a few have tens of thousands of contacts; people can belong to more than one organisation (Casey, our consultant, is in two); and the contact search must stay fast. Decide, write it down so the next engineer can disagree with the reasoning rather than the conclusion, then build the wall.
 
@@ -59,6 +61,8 @@ Whatever you choose, three questions decide whether it works, and the tests ask 
 2. **How does the database learn the tenant of this request, and when does it forget?** If the answer is a setting on the connection, then "when" is the whole problem: the pool hands the same connection to the next request.
 3. **What did the wall do to your queries?** A policy is an extra condition on every statement, and Postgres is careful about what it will evaluate before that condition: it will not run a function on a row ahead of the policy unless the function is known to reveal nothing about its arguments (`LEAKPROOF`). You measured a query-plan budget in A03; it is still yours, and what it costs under your wall is a number for the ADR, not a guess.
 
+One table needs more thought than the others. `memberships` says which person belongs to which organisation, and with which role, so a leak or a write there is a **privilege escalation across tenants**. It is also the table `requireRole` reads to *find out* the tenant: "which organisations does this signed-in person belong to?" is a question asked before any tenant is named. A rule of the form "only rows of the named tenant" would make that question unanswerable; a rule that lets a person read their own memberships anywhere must not also let them change them. Work out what may be read with what, and what may be written with what.
+
 ## Requirements
 
 1. **The decision record.** `docs/adr/0001-<short-title>.md` with `## Context`, `## Options` (at least three `###` options, each with how it fails), `## Decision` (names the option you chose, using its heading text) and `## Consequences` (what gets easier, what gets harder, **what is still not protected**).
@@ -67,7 +71,8 @@ Whatever you choose, three questions decide whether it works, and the tests ask 
 4. **The access layer names the tenant.** Every access to a tenant table in the DAL establishes which tenant the request is for. After a request, **even one that failed**, nothing of that tenant is left on the connection: a statement with no context on the same pooled connection sees nothing. Alternating requests for two organisations on a single connection never see each other's rows.
 5. **The plan budget.** The contact list and the search never read the whole table: they use an index (and the list needs no sort), measured **as the application's user, with the context in place**. Whether the search can still use the trigram indexes under your wall is part of your design: say in the ADR what you chose, what you **measured**, and at what number of contacts in one tenant your choice stops being good enough.
 6. **No side channel through errors.** A search pattern that makes the database raise an error (a lone backslash at the end, for example) gets the same answer whether or not *another* tenant has rows that match it.
-7. **Nothing else regresses.** A01 to A08 pass unchanged; their DAL tests now run as the restricted role.
+7. **The table that says who may do what is behind the wall too.** `memberships` is a tenant table like the others, with one difference you must design for: `requireRole` has to read a person's memberships **before** it knows which tenant the request is for. With the access layer's organisation filter removed from a role-change statement, the database must still refuse to change, delete, insert or even show another organisation's memberships.
+8. **Nothing else regresses.** A01 to A08 pass unchanged; their DAL tests now run as the restricted role.
 
 ## Acceptance criteria
 
@@ -76,11 +81,13 @@ Run `npm run act -- 9`, then `npm run act:upto -- 9`.
 | Test | What it checks |
 | --- | --- |
 | A09.1 | `docs/adr/0001-….md`: Context, at least three Options each with how it fails, a Decision that names one of them, Consequences. (The *shape* of the record; whether the reasoning is good is yours to judge with the checklist below.) |
-| A09.2 | The app's database user is not a superuser, cannot bypass row-level security, and does not own the tenant tables; and the connections the **running app** holds are made by such a user. |
-| A09.3 | With the app's credentials and no context: no rows from any tenant table (or an error), no insert, update or delete. |
+| A09.2 | The app's database user is not a superuser, cannot bypass row-level security, does not own the tenant tables **and is not a member of a role that does** (inheriting its privileges or able to `SET ROLE` to it); and the connections the **running app** holds are made by such a user. |
+| A09.3 | With the app's credentials and no context: no rows from any tenant table (`contacts`, `companies`, `deals`, `stages`, `memberships`) or an error, and no insert, update or delete. |
 | A09.4 | With a pool of one connection: after a request for one organisation, with no context the app sees nothing; the same after a failed request; 24 interleaved requests for two organisations each see only their own. |
 | A09.5 | The list (newest first, A to Z) and the search use an index and never scan the whole table, the list with no sort. Planned as the app's user after replaying what the DAL did on its connection, with planner statistics present. |
 | A09.6 | A malformed search pattern (a lone trailing backslash) answers the same for a word only *another* tenant has as for a word nobody has. Sent to the database as the app's user, after replaying what the DAL did to name the tenant. |
+| A09.7 | **Incident.** The statements a role-change function would send if it forgot its organisation filter (an `UPDATE` by user id alone, an `UPDATE`/`DELETE`/`SELECT` of the other organisation's rows, an `INSERT` into it), sent as the app's user in Kestrel's context, change nothing and show nothing of Acme's. Kestrel's own members are visible, so zero means something. |
+| A09.8 | The session in which the code finds out which organisations a person belongs to (it names the *person*, not a tenant) shows them their own memberships and nobody else's, and lets them change, delete or add none. Recorded from `requireRole` and replayed as the app's user. |
 
 ## Messages you may meet
 
@@ -91,6 +98,8 @@ Run `npm run act -- 9`, then `npm run act:upto -- 9`.
 - `timeout exceeded when trying to connect`: you asked the pool for a second connection while you were holding the only one (a transaction inside a transaction).
 - Many earlier DAL tests returning empty results: some DAL function reads a tenant table outside the wrapper that names the tenant.
 - `new row violates row-level security policy for table "…"` (SQLSTATE `42501`): you wrote a row for a tenant other than the one you named. `permission denied for table …` (also `42501`): the role lacks a `GRANT`.
+- `UPDATE memberships ... WHERE user_id = <an Acme user> (no organisation filter): {"rows":[…],"count":1}` (A09.7): the database changed, or showed, another organisation's membership. `Kestrel's own members are visible …` failing means your rule hides the tenant's own members too.
+- `"crm_app" is a member of "crm", which owns a tenant table (inherits its privileges: …; may SET ROLE to it: …)` (A09.2): the role the app uses takes on its owner's exemption through membership.
 - `sequential scan of contacts (…)` or `an index is used on contacts (…)`: the list or the search reads the whole table. Run the statement with `EXPLAIN` **as the app's role**, with the tenant set, and compare it with the plan you get as the owner.
 - `a Kestrel member probing for a word that only Acme has, versus one that nobody has: expected { error: '22025' } to deeply equal { rows: 0 }` (or the reverse): the database evaluated the search on another tenant's rows **before** it applied the isolation rule, and the difference between "error" and "no rows" tells a stranger whether any tenant has that word.
 
@@ -102,6 +111,8 @@ Run `npm run act -- 9`, then `npm run act:upto -- 9`.
 - **Is `LEAKPROOF` safe?** Predict first. Then, in a scratch database as a superuser, run `ALTER FUNCTION texticlike(text, text) LEAKPROOF`, look at the search plan as the app's user, and send the probe of A09.6 by hand (a pattern ending in a lone backslash, for a word that exists only in another tenant). What does the plan look like, and what does the probe return? What does that say about "our code escapes its search terms" as a defence for a second wall?
 - **Where does the trigram index become necessary?** Load one tenant with N contacts for growing N, time the search for a term that matches nothing (the worst case: the whole tenant is read), and find the N where it crosses 100 ms on your machine. Put the number, and the machine, in your ADR.
 - **Which tests went blind?** Take the first wall away in one function (delete the `org_id` filter) and run the earlier tests. Which ones still fail, and which now pass? What does that say about what each was testing? Then run them again with `ACT_APP_AS_OWNER=1 npm run act -- 8` (the app connects as the owner, which row-level security does not apply to) and compare. Why do you want *both* configurations in CI?
+- **A wall is not a lock against SQL injection.** The tenant is named by a setting that the application sets. Anyone who can make the application run arbitrary SQL can set it to another value. What does your wall protect against, and what does it not? Where would you say that in the ADR?
+- **The tables still outside the wall.** `users`, `sessions` and `orgs` carry no policy. For each: why can't it sit behind the same rule today, and what could go wrong if a query forgot to filter?
 - **Backups and restores.** For each option in your ADR: what does restoring *one* tenant's data to yesterday involve?
 
 ## Self-review checklist (judge your own ADR)
@@ -111,8 +122,9 @@ Run `npm run act -- 9`, then `npm run act:upto -- 9`.
 - [ ] The decision follows from the forces in the Context; I can point at the sentence that rules out each rejected option.
 - [ ] The consequences include something that gets *harder*, and something that is **still not protected**.
 - [ ] I can say what would make me revisit this decision.
+- [ ] I can say which tables are *not* behind my wall, and why, and what I would do about each.
 - [ ] Every claim about Postgres in the ADR is one I measured or one I read in the manual (and said so). In particular, any claim that a function is "safe" to treat specially has a probe behind it, not an argument.
-- [ ] Before the first run I wrote down how many of the 6 tests I expected to pass.
+- [ ] Before the first run I wrote down how many of the 8 tests I expected to pass.
 
 ## Official docs
 

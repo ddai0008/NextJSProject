@@ -17,8 +17,11 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE O
 ALTER TABLE "contacts" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE POLICY "tenant_isolation" ON "contacts" USING ("org_id" = /* the setting, as a uuid; think about NULL and '' */);--> statement-breakpoint
 /* … the same for companies, deals and stages … */
+/* … memberships needs separate rules for reading (the tenant's members, and a person's own memberships) and for writing (only inside the tenant) … */
 /* … nothing else is needed for the list. What the search needs, if anything, is a decision for your ADR, backed by a measurement … */
 ```
+
+**A `withPerson` beside it** (only if your design for `memberships` needs the person): the same shape as `withTenant`, setting a second transaction-local setting, used by `requireRole` and by nothing else.
 
 **`withTenant` in `db/client.ts`:**
 
