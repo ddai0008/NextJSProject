@@ -159,7 +159,10 @@ describe('A09 the plan budget, as the application runs it', () => {
       const plan = await planOfReplayed(queries, queries.indexOf(page))
       const where = `${label}: ${describePlan(plan)}`
       expect(plan.some((n) => n.nodeType === 'Seq Scan' && n.relation === 'contacts'), `sequential scan of contacts (${where})`).toBe(false)
-      expect(plan.some((n) => n.relation === 'contacts' && n.index), `an index is used on contacts (${where})`).toBe(true)
+      // In a bitmap plan the index is named on a child node that has no table, so ask the catalog which table each index in the plan belongs to.
+      const used = plan.map((n) => n.index).filter((name): name is string => Boolean(name))
+      const onContacts = used.length ? await sql<{ indexname: string }>("select indexname from pg_indexes where tablename = 'contacts' and indexname = any($1)", [used]) : []
+      expect(onContacts.length, `an index on contacts is used (${where})`).toBeGreaterThan(0)
       // The search may sort (it filters the organisation's rows first); the list may not.
       if (!search) expect(plan.some((n) => n.nodeType === 'Sort' || n.nodeType === 'Incremental Sort'), `sort node (${where})`).toBe(false)
     }
