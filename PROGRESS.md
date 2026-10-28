@@ -9,7 +9,7 @@ State of the course. Updated after each step. Struggles are recorded so later ac
 | 0. Ground truth | Done 2026-10-26. See `GROUND_TRUTH.md`. App scaffolded (Next.js 16.4.3, React 19.3.0). |
 | 1. Diagnostic | Answered 2026-10-27. Score **3.0 / 10** (provisional, see below). |
 | 2. Course plan | `course/PLAN.md` approved for Phase 1 (A01-A09); Phases 2-4 are an outline. |
-| 3. Phase 1 | Generated 2026-10-27 (A01-A09, ~33.5 h). Verified on the reference branch: `npm run act:upto -- 9` passes, also with the test files in shuffled orders. **Waiting for your review.** No activity has been started by the learner yet. |
+| 3. Phase 1 | Generated 2026-10-27 and revised after two reviews (2026-10-28): A01-A09, ~35 h. Every reference tag `ref/01`..`ref/09` passes the current tests (`npm run act:upto -- N`; `ref/09` runs 113). **Ready to start A01.** Before A01 run `docker compose down -v` once if you ever started the database from an earlier `compose.yaml` (`npm run db:up` tells you). No activity has been started yet. |
 
 ## Hours: estimate and actual
 
