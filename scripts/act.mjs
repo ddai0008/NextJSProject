@@ -19,7 +19,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symli
 import { createServer } from 'node:net'
 import { join, resolve } from 'node:path'
 import pg from 'pg'
-import { createFromTemplate, databaseExists, dropDatabase, ensureCluster, prepareDatabase, roleExists, templateHash, urlFor, withAdmin, withClient } from './lib/db.mjs'
+import { createFromTemplate, databaseExists, dropDatabase, ensureCluster, prepareDatabase, templateHash, urlFor, withAdmin, withClient } from './lib/db.mjs'
 import { seed } from './lib/seed.mjs'
 
 const root = resolve(import.meta.dirname, '..')
@@ -116,6 +116,20 @@ function preflight(needs) {
 }
 
 // ---------- databases ----------
+/**
+ * Does the application's role (crm_app, created by your migration in A09) exist AND have it been given the tables of THIS test database? A role belongs to the whole cluster, not to
+ * one database, so it can exist because of some other branch or an older run while this database's migrations have not granted it anything yet (any commit before A09, say).
+ * Connecting the app as such a role would fail every query with "permission denied", so only a role that can read the tables is used.
+ */
+async function appRoleCanReadTables(database) {
+  return withClient(urlFor(database), async (c) =>
+    (await c.query(
+      `select case when to_regclass('public.contacts') is not null and exists (select 1 from pg_roles where rolname = 'crm_app')
+                   then has_table_privilege('crm_app', 'public.contacts', 'select') else false end as ready`,
+    )).rows[0].ready,
+  )
+}
+
 async function ensureTemplate() {
   const journal = join(root, 'db', 'migrations', 'meta', '_journal.json')
   if (!existsSync(journal)) return null
@@ -261,7 +275,7 @@ async function main() {
         runDb = `crm_run_${process.pid}`
         await dropDatabase(runDb)
         await createFromTemplate(runDb, template)
-        const appRole = !process.env.ACT_APP_AS_OWNER && (await roleExists('crm_app')) ? { user: 'crm_app', password: 'crm_app' } : {}
+        const appRole = !process.env.ACT_APP_AS_OWNER && (await appRoleCanReadTables(runDb)) ? { user: 'crm_app', password: 'crm_app' } : {}
         Object.assign(env, { ACT_RUN_DB: runDb, ACT_DB_URL: urlFor(runDb), ACT_APP_DB_URL: urlFor(runDb, appRole), DATABASE_URL: urlFor(runDb, appRole) })
         if (process.env.ACT_APP_AS_OWNER) {
           // The flag is only worth anything if the owner sees every tenant with no tenant named. A superuser or BYPASSRLS owner always does; a plain owner does unless FORCE ROW LEVEL SECURITY is on.
